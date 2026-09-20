@@ -8,7 +8,7 @@ COPY backend ./backend
 RUN gradle :backend:bootJar --no-daemon
 
 
-FROM eclipse-temurin:25-jdk
+FROM eclipse-temurin:24-jdk
 
 RUN useradd --system --uid 10001 jvmlens \
     && mkdir -p /tmp/jvm-lens \
