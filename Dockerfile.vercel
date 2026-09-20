@@ -5,10 +5,13 @@ WORKDIR /workspace
 COPY settings.gradle.kts build.gradle.kts ./
 COPY backend ./backend
 
-RUN gradle :backend:bootJar --no-daemon
+RUN gradle :backend:bootJar \
+    --no-daemon \
+    --stacktrace \
+    --info
 
 
-FROM eclipse-temurin:24-jdk
+FROM eclipse-temurin:25-jdk
 
 RUN useradd --system --uid 10001 jvmlens \
     && mkdir -p /tmp/jvm-lens \
@@ -16,10 +19,10 @@ RUN useradd --system --uid 10001 jvmlens \
 
 USER jvmlens
 
-COPY --from=build /workspace/backend/build/libs/backend-*.jar /app.jar
+COPY --from=build \
+    /workspace/backend/build/libs/backend-*.jar \
+    /app.jar
 
 ENV JAVA_TOOL_OPTIONS="-Djava.io.tmpdir=/tmp/jvm-lens"
-
-EXPOSE 8080
 
 ENTRYPOINT ["java", "-jar", "/app.jar"]
