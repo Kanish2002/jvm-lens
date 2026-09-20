@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jvmlens.dev/schema/trace-step.json",
+  "title": "TraceStep",
+  "type": "object",
+  "required": ["sequence", "event", "location", "thread", "stackFrames", "heap", "stdout", "stderr"],
+  "properties": {
+    "sequence": { "type": "integer", "minimum": 1 },
+    "event": { "enum": ["BREAKPOINT", "LINE_STEP", "EXCEPTION", "METHOD_ENTRY", "METHOD_EXIT"] },
+    "location": { "type": "object" },
+    "thread": { "type": "object" },
+    "stackFrames": { "type": "array" },
+    "heap": { "type": "array" },
+    "stdout": { "type": "string" },
+    "stderr": { "type": "string" }
+  }
+}
+

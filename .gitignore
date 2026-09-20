@@ -1,0 +1,11 @@
+.gradle/
+build/
+**/build/
+node_modules/
+dist/
+*.tsbuildinfo
+.idea/
+.vscode/
+.DS_Store
+*.hprof
+.sites-runtime/

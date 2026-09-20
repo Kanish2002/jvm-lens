@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: jvm-lens
+server:
+  port: ${PORT:8080}
+jvm-lens:
+  workspace: ${JVM_LENS_WORKSPACE:/tmp/jvm-lens}
+  max-execution-seconds: 10
+  max-steps: 5000
+  max-source-bytes: 512000
+  max-output-bytes: 1048576
+  max-objects: 500
+  max-depth: 4
+  max-array-elements: 100
+
