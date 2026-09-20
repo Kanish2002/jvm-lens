@@ -8,7 +8,7 @@ import com.jvmlens.session.ExecutionSession;
 import com.jvmlens.session.ExecutionSession.ExecutionCommand;
 import com.jvmlens.session.ExecutionSessionManager;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.CrossOrigin;
+//import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,7 +24,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/executions")
-@CrossOrigin(origins = "${JVM_LENS_ALLOWED_ORIGIN:http://localhost:5173}")
+//@CrossOrigin(origins = "${JVM_LENS_ALLOWED_ORIGIN:http://localhost:5173}")
 public class ExecutionController {
     private final CompilationService compiler;
     private final SourceAnalyzer sourceAnalyzer;
