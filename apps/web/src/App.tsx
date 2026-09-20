@@ -41,7 +41,7 @@ export function App() {
       } catch { /* backend may still be starting */ }
     }
     poll()
-    const timer = window.setInterval(poll, 350)
+    const timer = window.setInterval(poll, 10000)
     return () => { cancelled = true; window.clearInterval(timer) }
   }, [sessionId, selected])
 
