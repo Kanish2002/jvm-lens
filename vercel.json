@@ -10,7 +10,7 @@
     "backend": {
       "root": "./",
       "runtime": "container",
-      "entrypoint": "docker/backend.Dockerfile"
+      "entrypoint": "Dockerfile.vercel"
     }
   },
 
