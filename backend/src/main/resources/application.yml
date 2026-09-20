@@ -6,9 +6,11 @@ spring:
     name: jvm-lens
 
 jvm-lens:
+  workspace: ${JVM_LENS_WORKSPACE:/tmp/jvm-lens}
   max-steps: 500
   max-objects: 250
   max-depth: 4
   max-array-elements: 32
   max-output-bytes: 65536
   max-execution-seconds: 10
+  max-source-bytes: 51200
