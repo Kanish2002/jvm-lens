@@ -3,12 +3,12 @@
 ## Observed
 
 - Current source location and bytecode index
-- Suspended-thread stack frames
+- Suspended user-thread stack frames
 - Visible primitive locals and reference values
 - Runtime object type and JDI object identity
 - Instance and static field values
 - Primitive and reference arrays
-- Active event thread and exceptions
+- Active event thread, other suspended user threads, and exceptions
 - `stdout` and `stderr`
 - Aggregate heap, non-heap, Metaspace, thread, and class counts when local JMX is available
 - Class bytecode produced by the real compiler
@@ -19,19 +19,18 @@
 - Object/reference graph from tracked roots
 - Reachability from tracked roots
 - Local, reference, field, frame, and console diffs between snapshots
-- Source/bytecode association
+- Method-scoped source/bytecode association
+- Program-order, field-access, monitor, and volatile-order evidence when visible at the suspended bytecode location
 - Object lifetime within the captured graph
 
 “Unreachable from tracked roots” is deliberately narrower than “globally unreachable.” An object that disappears from this graph may still be reachable through an untracked thread, JNI global, class-loader structure, or another JVM root.
 
-## Simulated
+## Simulated or qualified
 
-- Per-object placement in Eden
-- Survivor aging
-- Promotion to old generation
-- Per-object generational history
+- Race candidates derived from conflicting bytecode field accesses
+- Possible reorderings or interleavings explained by the JMM explorer
 
-These are teaching aids. Aggregate collector telemetry and per-object simulated placement are presented separately.
+These are teaching aids, not proof of a production race. A Java agent and happens-before analysis are required for stronger conclusions.
 
 ## Not promised
 
@@ -46,7 +45,7 @@ These are teaching aids. Aggregate collector telemetry and per-object simulated 
 
 ## JIT
 
-Educational mode uses `-Xint`. If a normal-JVM mode is added, inlining, escape analysis, scalar replacement, dead-code elimination, and allocation elimination can make the implementation differ from a straightforward source-level teaching model.
+The child JVM is not forced into `-Xint`. Inlining, escape analysis, scalar replacement, dead-code elimination, and allocation elimination can make implementation behavior differ from a straightforward source-level teaching model. Debugger suspension also perturbs thread scheduling.
 
 ## Collection
 
@@ -55,4 +54,3 @@ The MVP does not claim physical object collection. The JVMTI milestone will tag 
 ## VisualVM
 
 VisualVM is useful for development-time comparison of heap usage, allocation profiles, heap dumps, GC statistics, GC roots, and Visual GC. It is not embedded, automated per source line, or used as the execution engine. Heap dumps are expensive point-in-time snapshots and are not generated during stepping.
-

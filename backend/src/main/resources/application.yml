@@ -8,10 +8,13 @@ server:
 
 jvm-lens:
   workspace: ${JVM_LENS_WORKSPACE:/tmp/jvm-lens}
-  max-execution-seconds: 10
-  max-steps: 5000
-  max-source-bytes: 512000
-  max-output-bytes: 1048576
-  max-objects: 500
-  max-depth: 4
-  max-array-elements: 100
+  max-steps: ${JVM_LENS_MAX_STEPS:1000}
+  max-history: ${JVM_LENS_MAX_HISTORY:400}
+  session-ttl-seconds: ${JVM_LENS_SESSION_TTL_SECONDS:900}
+  cleanup-interval-ms: ${JVM_LENS_CLEANUP_INTERVAL_MS:60000}
+  max-concurrent-executions: ${JVM_LENS_MAX_CONCURRENT_EXECUTIONS:2}
+  max-source-bytes: ${JVM_LENS_MAX_SOURCE_BYTES:256000}
+  max-output-bytes: ${JVM_LENS_MAX_OUTPUT_BYTES:131072}
+  max-objects: ${JVM_LENS_MAX_OBJECTS:150}
+  max-depth: ${JVM_LENS_MAX_DEPTH:3}
+  max-array-elements: ${JVM_LENS_MAX_ARRAY_ELEMENTS:50}

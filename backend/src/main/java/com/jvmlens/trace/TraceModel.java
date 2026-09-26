@@ -11,14 +11,17 @@ public final class TraceModel {
     public record Value(String kind, String type, Object value, String objectId, EvidenceType evidence) {}
     public record Variable(String name, Value value) {}
     public record StackFrame(String className, String methodName, int line, List<Variable> locals, String thisObjectId) {}
+    public record ThreadSnapshot(ThreadState thread, List<StackFrame> stackFrames, boolean eventThread) {}
     public record Field(String name, String declaringType, boolean isStatic, Value value) {}
     public record HeapObject(String id, String runtimeType, String displayValue, List<Field> fields,
                              List<Value> elements, boolean reachable, EvidenceType reachabilityEvidence,
                              String simulatedGeneration, boolean truncated) {}
     public record StaticState(String className, List<Field> fields) {}
-    public record BytecodeInstruction(int offset, String mnemonic, String detail, Integer sourceLine) {}
+    public record BytecodeInstruction(String methodName, int offset, String mnemonic, String detail, Integer sourceLine) {}
     public record Memory(long heapUsed, long heapCommitted, long heapMax, long nonHeapUsed,
                          long metaspaceUsed, int threadCount, int loadedClasses, EvidenceType evidence) {}
+    public record JmmEvent(String type, long threadId, String threadName, String variable,
+                           String detail, EvidenceType evidence) {}
     public record TraceDiff(List<String> localsAdded, List<String> localsRemoved, List<String> localsChanged,
                             List<String> objectsCreated, List<String> objectsChanged,
                             List<String> referencesChanged, List<String> objectsBecameUnreachable,
@@ -30,9 +33,8 @@ public final class TraceModel {
         }
     }
     public record TraceStep(long sequence, String event, Location location, ThreadState thread,
-                            List<StackFrame> stackFrames, List<HeapObject> heap,
+                            List<StackFrame> stackFrames, List<ThreadSnapshot> threads, List<HeapObject> heap,
                             List<StaticState> staticFields, List<BytecodeInstruction> bytecode,
-                            Memory memory, List<Map<String, Object>> gcEvents,
+                            Memory memory, List<Map<String, Object>> gcEvents, List<JmmEvent> jmmEvents,
                             String stdout, String stderr, TraceDiff diff) {}
 }
-

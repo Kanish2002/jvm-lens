@@ -1,52 +1,90 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
-import { Activity, Braces, ChevronLeft, ChevronRight, CircleStop, Code2, Cpu, Database, Gauge, Layers3, Play, RotateCcw, StepForward, TerminalSquare, Zap } from 'lucide-react'
+import {
+  Activity, Braces, ChevronDown, ChevronLeft, ChevronUp, CircleStop,
+  Code2, Gauge, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, Play,
+  RotateCcw, StepForward, X, Zap
+} from 'lucide-react'
+import { ApiError, fetchSession, mergeSession, sendCommand, startExecution } from './api'
 import { examples, acceptanceExample } from './examples'
-import type { Diagnostic, Evidence, HeapObject, Session, TraceStep, Value } from './types'
+import { MemoryWorkspace } from './MemoryWorkspace'
+import { ExecutionSocket } from './executionSocket'
+import type { Diagnostic, Evidence, Session, SessionStatus, TraceStep } from './types'
 
-type MainTab = 'Stack' | 'Heap' | 'Strings' | 'Classes' | 'Bytecode' | 'Memory' | 'GC' | 'Threads' | 'Object Layout'
-type BottomTab = 'Timeline' | 'Console' | 'Bytecode'
+type BottomTab = 'Timeline' | 'Console' | 'Changes' | 'Bytecode' | 'JMM Explorer'
 type ViewMode = 'Beginner' | 'Intermediate' | 'JVM Internals'
-const mainTabs: MainTab[] = ['Stack', 'Heap', 'Strings', 'Classes', 'Bytecode', 'Memory', 'GC', 'Threads', 'Object Layout']
+const POLL_INTERVAL_MS = 1000
 
 export function App() {
   const [source, setSource] = useState(acceptanceExample)
   const [session, setSession] = useState<Session | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
-  const [selected, setSelected] = useState(0)
-  const [tab, setTab] = useState<MainTab>('Heap')
+  const [selectedSequence, setSelectedSequence] = useState<number | null>(null)
   const [bottomTab, setBottomTab] = useState<BottomTab>('Timeline')
+  const [bottomOpen, setBottomOpen] = useState(true)
   const [mode, setMode] = useState<ViewMode>('Intermediate')
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([])
   const [starting, setStarting] = useState(false)
+  const [startStatus, setStartStatus] = useState<SessionStatus | null>(null)
   const [selectedObject, setSelectedObject] = useState<string | null>(null)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
+  const [editorOpen, setEditorOpen] = useState(true)
+  const [focusMode, setFocusMode] = useState(false)
+  const [transport, setTransport] = useState<'socket' | 'poll' | null>(null)
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
+  const latestSequenceRef = useRef(0)
+  const followLiveRef = useRef(true)
+  const socketRef = useRef<ExecutionSocket | null>(null)
 
-  const step = session?.trace[selected] ?? null
+  const selectedIndex = useMemo(() => {
+    if (!session?.trace.length) return -1
+    if (selectedSequence == null) return session.trace.length - 1
+    const exact = session.trace.findIndex(item => item.sequence === selectedSequence)
+    return exact >= 0 ? exact : session.trace.length - 1
+  }, [session?.trace, selectedSequence])
+  const step = selectedIndex >= 0 ? session?.trace[selectedIndex] ?? null : null
   const liveIndex = Math.max(0, (session?.trace.length ?? 1) - 1)
+  const status = session?.status ?? startStatus
+
+  const pullSession = useCallback(async (id: string, signal?: AbortSignal) => {
+    const incoming = await fetchSession(id, latestSequenceRef.current, signal)
+    if (followLiveRef.current && incoming.trace.length) {
+      setSelectedSequence(incoming.trace[incoming.trace.length - 1].sequence)
+    }
+    setSession(current => {
+      const merged = mergeSession(current, incoming)
+      latestSequenceRef.current = merged.latestSequence
+      return merged
+    })
+    setStartStatus(incoming.status)
+    setConnectionError(null)
+    return incoming
+  }, [])
 
   useEffect(() => {
-    if (!sessionId) return
-    let cancelled = false
+    if (!sessionId || transport !== 'poll') return
+    const controller = new AbortController()
+    let timer = 0
     const poll = async () => {
       try {
-        const response = await fetch(`/api/executions/${sessionId}`)
-        const next: Session = await response.json()
-        if (cancelled) return
-        setSession(current => {
-          if (!current || selected >= current.trace.length - 1) setSelected(Math.max(0, next.trace.length - 1))
-          return next
-        })
-      } catch { /* backend may still be starting */ }
+        const incoming = await pullSession(sessionId, controller.signal)
+        if (!incoming.complete) timer = window.setTimeout(poll, POLL_INTERVAL_MS)
+      } catch (error) {
+        if (controller.signal.aborted) return
+        const message = error instanceof ApiError && error.status === 404
+          ? 'This execution session expired or moved to another backend instance. Run the code again to create a fresh session.'
+          : error instanceof Error ? error.message : 'Could not refresh the execution.'
+        setConnectionError(message)
+        timer = window.setTimeout(poll, 3000)
+      }
     }
-    poll()
-    const timer = window.setInterval(poll, 10000)
-    return () => { cancelled = true; window.clearInterval(timer) }
-  }, [sessionId, selected])
+    void poll()
+    return () => { controller.abort(); window.clearTimeout(timer) }
+  }, [sessionId, pullSession, transport])
 
   useEffect(() => {
-    if (!editorRef.current || !step) return
+    if (!editorRef.current || !step || step.location.line < 1) return
     editorRef.current.revealLineInCenter(step.location.line)
     const ids = editorRef.current.deltaDecorations([], [{
       range: { startLineNumber: step.location.line, startColumn: 1, endLineNumber: step.location.line, endColumn: 1 },
@@ -55,141 +93,254 @@ export function App() {
     return () => { editorRef.current?.deltaDecorations(ids, []) }
   }, [step])
 
+  useEffect(() => {
+    const onFullscreenChange = () => { if (!document.fullscreenElement) setFocusMode(false) }
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
+  }, [])
+
+  useEffect(() => () => socketRef.current?.close(), [])
+
   const mountEditor: OnMount = (instance, monaco) => {
     editorRef.current = instance
     monaco.editor.defineTheme('jvm-lens', {
       base: 'vs-dark', inherit: true, rules: [],
-      colors: { 'editor.background': '#0b0d12', 'editorLineNumber.foreground': '#4b5263', 'editorLineNumber.activeForeground': '#f4b942', 'editor.selectionBackground': '#364b6b88' }
+      colors: { 'editor.background': '#0a0d12', 'editorLineNumber.foreground': '#4b5263', 'editorLineNumber.activeForeground': '#f4b942', 'editor.selectionBackground': '#364b6b88' }
     })
     monaco.editor.setTheme('jvm-lens')
   }
 
   const run = async () => {
-    setStarting(true); setDiagnostics([]); setSession(null); setSelected(0); setSelectedObject(null)
+    setStarting(true)
+    setDiagnostics([])
+    setSession(null)
+    setSessionId(null)
+    setSelectedSequence(null)
+    setSelectedObject(null)
+    setConnectionError(null)
+    latestSequenceRef.current = 0
+    followLiveRef.current = true
+    setStartStatus('COMPILING')
     try {
-      const response = await fetch('/api/executions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sources: { 'Main.java': source }, mainClass: 'Main' }) })
-      const result = await response.json()
+      socketRef.current?.close()
+      let result
+      if (typeof WebSocket !== 'undefined') {
+        const live = new ExecutionSocket({
+          onStep: (id, nextStatus, latestSequence, nextStep) => {
+            latestSequenceRef.current = latestSequence
+            setStartStatus(nextStatus)
+            if (followLiveRef.current) setSelectedSequence(nextStep.sequence)
+            setSession(current => {
+              const base: Session = current ?? { sessionId: id, status: nextStatus, complete: false, autoPlay: false,
+                historyStartSequence: nextStep.sequence, latestSequence, reset: false, trace: [] }
+              const merged = mergeSession(base, { ...base, status: nextStatus, latestSequence, trace: [nextStep], reset: false })
+              return merged
+            })
+          },
+          onComplete: (id, nextStatus, latestSequence, error) => {
+            setStartStatus(nextStatus)
+            setSession(current => current
+              ? { ...current, sessionId: id, status: nextStatus, latestSequence, complete: true, error }
+              : { sessionId: id, status: nextStatus, latestSequence, complete: true, error, autoPlay: false,
+                historyStartSequence: 1, reset: false, trace: [] })
+            if (error) setConnectionError(error)
+          },
+          onError: message => setConnectionError(message),
+          onAutoPlay: enabled => setSession(current => current ? { ...current, autoPlay: enabled } : current),
+          onUnexpectedClose: () => setConnectionError('The live debugger connection closed. Run again to create a new pinned execution session.')
+        })
+        socketRef.current = live
+        try {
+          result = await live.start(source)
+          setTransport('socket')
+        } catch {
+          live.close()
+          socketRef.current = null
+          result = await startExecution(source)
+          setTransport('poll')
+        }
+      } else {
+        result = await startExecution(source)
+        setTransport('poll')
+      }
       setDiagnostics(result.diagnostics ?? [])
-      if (result.compiled) setSessionId(result.sessionId)
-    } catch {
-      setDiagnostics([{ file: 'Main.java', line: 1, column: 1, kind: 'ERROR', message: 'Could not reach the JVM Lens backend.' }])
-    } finally { setStarting(false) }
+      setStartStatus(result.status)
+      if (result.compiled && result.sessionId) {
+        setSessionId(result.sessionId)
+        setSession(current => current ?? { sessionId: result.sessionId, status: result.status, complete: false,
+          autoPlay: false, historyStartSequence: 1, latestSequence: 0, reset: false, trace: [] })
+      } else {
+        socketRef.current?.close(); socketRef.current = null; setTransport(null)
+        if (result.error) setConnectionError(result.error)
+      }
+    } catch (error) {
+      setStartStatus('FAILED')
+      setConnectionError(error instanceof Error ? error.message : 'Could not reach the JVM Lens backend.')
+    } finally {
+      setStarting(false)
+    }
   }
 
   const command = async (name: string) => {
     if (!sessionId) return
-    await fetch(`/api/executions/${sessionId}/commands/${name}`, { method: 'POST' })
+    try {
+      setConnectionError(null)
+      followLiveRef.current = true
+      if (transport === 'socket' && socketRef.current?.isOpen()) socketRef.current.command(name)
+      else {
+        await sendCommand(sessionId, name)
+        window.setTimeout(() => void pullSession(sessionId).catch(() => undefined), 100)
+      }
+    } catch (error) {
+      setConnectionError(error instanceof Error ? error.message : `Could not send ${name}.`)
+    }
   }
 
-  const reset = () => { if (sessionId && !session?.complete) command('stop'); setSessionId(null); setSession(null); setSelected(0); setDiagnostics([]) }
+  const reset = () => {
+    if (sessionId && !session?.complete) {
+      if (transport === 'socket' && socketRef.current?.isOpen()) {
+        try { socketRef.current.command('stop') } catch { /* connection already closed */ }
+      } else void sendCommand(sessionId, 'stop').catch(() => undefined)
+    }
+    socketRef.current?.close(); socketRef.current = null
+    setSessionId(null); setSession(null); setSelectedSequence(null); setDiagnostics([])
+    setSelectedObject(null); setConnectionError(null); setStartStatus(null)
+    latestSequenceRef.current = 0; followLiveRef.current = true; setTransport(null)
+  }
   const pickExample = (name: string) => { reset(); setSource(examples[name as keyof typeof examples]) }
+  const selectTimeline = (sequence: number) => {
+    followLiveRef.current = sequence === session?.latestSequence
+    setSelectedSequence(sequence)
+    setSelectedObject(null)
+  }
+  const previous = () => {
+    if (!session || selectedIndex <= 0) return
+    followLiveRef.current = false
+    setSelectedSequence(session.trace[selectedIndex - 1].sequence)
+  }
+  const next = () => {
+    if (session && selectedIndex < liveIndex) {
+      const nextStep = session.trace[selectedIndex + 1]
+      followLiveRef.current = nextStep.sequence === session.latestSequence
+      setSelectedSequence(nextStep.sequence)
+    } else void command('over')
+  }
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) { await document.documentElement.requestFullscreen(); setFocusMode(true) }
+      else { await document.exitFullscreen(); setFocusMode(false) }
+    } catch { setFocusMode(value => !value) }
+  }
 
-  return <div className="app-shell">
+  return <div className={`app-shell ${focusMode ? 'focus-mode' : ''} ${editorOpen ? '' : 'editor-closed'} ${bottomOpen ? '' : 'bottom-closed'}`}>
     <header className="topbar">
-      <div className="brand"><div className="brand-mark"><Braces size={20} /></div><div><strong>JVM Lens</strong><span>Real Java execution, made visible</span></div></div>
+      <div className="brand"><div className="brand-mark"><Braces size={19} /></div><div><strong>JVM Lens</strong><span>Java memory, connected</span></div></div>
       <div className="run-controls">
-        <button className="primary" onClick={run} disabled={starting || (!!sessionId && !session?.complete)}><Play size={15} fill="currentColor" />{starting ? 'Compiling…' : 'Run'}</button>
-        <button onClick={reset}><RotateCcw size={15} />Reset</button>
+        <button className="primary" onClick={run} disabled={starting || (!!sessionId && !session?.complete)}><Play size={14} fill="currentColor" />{starting ? 'Compiling…' : 'Run'}</button>
+        <button onClick={reset}><RotateCcw size={14} />Reset</button>
         <span className="divider" />
-        <button aria-label="Previous snapshot" onClick={() => setSelected(i => Math.max(0, i - 1))} disabled={!step || selected === 0}><ChevronLeft size={17} /></button>
-        <button onClick={() => selected < liveIndex ? setSelected(i => i + 1) : command('over')} disabled={!sessionId || (!!session?.complete && selected >= liveIndex)}><StepForward size={16} />Next</button>
-        <button onClick={() => command('into')} disabled={!sessionId || session?.complete}>Into</button>
-        <button onClick={() => command('over')} disabled={!sessionId || session?.complete}>Over</button>
-        <button onClick={() => command('out')} disabled={!sessionId || session?.complete}>Out</button>
-        <button className={session?.autoPlay ? 'active' : ''} onClick={() => command('auto')} disabled={!sessionId || session?.complete}><Zap size={15} />Auto</button>
+        <button aria-label="Previous snapshot" onClick={previous} disabled={!step || selectedIndex <= 0}><ChevronLeft size={16} /></button>
+        <button onClick={next} disabled={!sessionId || (!!session?.complete && selectedIndex >= liveIndex)}><StepForward size={15} />Next</button>
+        <button onClick={() => void command('into')} disabled={!sessionId || session?.complete}>Into</button>
+        <button onClick={() => void command('over')} disabled={!sessionId || session?.complete}>Over</button>
+        <button onClick={() => void command('out')} disabled={!sessionId || session?.complete}>Out</button>
+        <button className={session?.autoPlay ? 'active' : ''} onClick={() => void command('auto')} disabled={!sessionId || session?.complete}><Zap size={14} />Auto</button>
       </div>
-      <div className="view-switch" role="group" aria-label="View mode">{(['Beginner', 'Intermediate', 'JVM Internals'] as ViewMode[]).map(item => <button key={item} className={mode === item ? 'selected' : ''} onClick={() => setMode(item)}>{item}</button>)}</div>
+      <div className="header-actions">
+        <div className="view-switch" role="group" aria-label="View mode">{(['Beginner', 'Intermediate', 'JVM Internals'] as ViewMode[]).map(item => <button key={item} className={mode === item ? 'selected' : ''} onClick={() => setMode(item)}>{item}</button>)}</div>
+        <button className="icon-button" aria-label={editorOpen ? 'Hide editor' : 'Show editor'} onClick={() => setEditorOpen(value => !value)}>{editorOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}</button>
+        <button className="icon-button" aria-label="Toggle full screen" onClick={() => void toggleFullscreen()}>{focusMode ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>
+      </div>
     </header>
 
+    {connectionError && <div className="connection-alert" role="alert"><CircleStop size={15} /><span>{connectionError}</span><button onClick={() => setConnectionError(null)} aria-label="Dismiss error"><X size={14} /></button></div>}
+
     <main className="workspace">
-      <section className="editor-pane panel">
-        <div className="pane-title"><span><Code2 size={15} />SOURCE</span><select aria-label="Example" onChange={e => pickExample(e.target.value)} defaultValue="Objects & aliases">{Object.keys(examples).map(name => <option key={name}>{name}</option>)}</select></div>
+      {editorOpen && !focusMode && <section className="editor-pane panel">
+        <div className="pane-title"><span><Code2 size={14} />SOURCE</span><select aria-label="Example" onChange={event => pickExample(event.target.value)} defaultValue="Objects & aliases">{Object.keys(examples).map(name => <option key={name}>{name}</option>)}</select></div>
         <div className="file-tab"><span className="java-icon">J</span>Main.java <span className="file-status">●</span></div>
-        <Editor height="100%" defaultLanguage="java" value={source} onChange={value => setSource(value ?? '')} onMount={mountEditor} options={{ fontSize: 14, fontFamily: 'JetBrains Mono, monospace', fontLigatures: true, minimap: { enabled: false }, glyphMargin: true, lineHeight: 22, padding: { top: 12 }, scrollBeyondLastLine: false, automaticLayout: true }} />
-        {diagnostics.length > 0 && <div className="diagnostics">{diagnostics.map((d, i) => <div key={i}><CircleStop size={14} /> <b>{d.file}:{d.line}:{d.column}</b> {d.message}</div>)}</div>}
-      </section>
+        <Editor height="100%" defaultLanguage="java" value={source} onChange={value => setSource(value ?? '')} onMount={mountEditor}
+          options={{ fontSize: 13, fontFamily: 'JetBrains Mono, monospace', fontLigatures: true, minimap: { enabled: false }, glyphMargin: true, lineHeight: 21, padding: { top: 12 }, scrollBeyondLastLine: false, automaticLayout: true }} />
+        {diagnostics.length > 0 && <div className="diagnostics">{diagnostics.map((diagnostic, index) => <div key={`${diagnostic.line}-${index}`}><CircleStop size={13} /><b>{diagnostic.file}:{diagnostic.line}:{diagnostic.column}</b>{diagnostic.message}</div>)}</div>}
+      </section>}
 
       <section className="visualizer-pane panel">
-        <nav className="tabs">{mainTabs.filter(item => mode !== 'Beginner' || !['Bytecode', 'GC', 'Threads', 'Object Layout'].includes(item)).map(item => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>)}</nav>
-        <div className="visualizer-content"><MainView tab={tab} step={step} selectedObject={selectedObject} onSelectObject={setSelectedObject} /></div>
+        <div className="visualizer-heading">
+          <div><Gauge size={15} /><strong>Memory workspace</strong>{step && <span>line {step.location.line} · {step.location.className}.{step.location.methodName}()</span>}</div>
+          <ExecutionStatus status={status} step={step} error={session?.error} />
+        </div>
+        <div className="visualizer-content"><MemoryWorkspace step={step} selectedObject={selectedObject} onSelectObject={setSelectedObject} mode={mode} /></div>
+        {selectedObject && step && <ObjectInspector step={step} objectId={selectedObject} onClose={() => setSelectedObject(null)} />}
       </section>
 
-      <aside className="inspector-pane panel">
-        <div className="pane-title"><span><Gauge size={15} />INSPECTOR</span>{step && <EvidenceBadge value="OBSERVED" />}</div>
-        <Inspector step={step} selectedObject={selectedObject} />
-      </aside>
-
       <section className="bottom-pane panel">
-        <nav className="bottom-tabs">{(['Timeline', 'Console', 'Bytecode'] as BottomTab[]).map(item => <button key={item} className={bottomTab === item ? 'active' : ''} onClick={() => setBottomTab(item)}>{item}</button>)}<div className="execution-state">{session?.error ? <span className="error-dot">Error</span> : session?.complete ? <span>● Finished</span> : step ? <span className="paused">● Paused at line {step.location.line}</span> : <span>Ready</span>}</div></nav>
-        <BottomView tab={bottomTab} session={session} selected={selected} setSelected={setSelected} step={step} />
+        <nav className="bottom-tabs">
+          {(['Timeline', 'Console', 'Changes', 'Bytecode', 'JMM Explorer'] as BottomTab[]).map(item => <button key={item} className={bottomTab === item ? 'active' : ''} onClick={() => { setBottomTab(item); setBottomOpen(true) }}>{item}</button>)}
+          <div className="execution-state">{step ? `Step ${step.sequence} of ${session?.latestSequence ?? step.sequence}` : statusLabel(status)}</div>
+          <button className="collapse-bottom" aria-label={bottomOpen ? 'Collapse details' : 'Expand details'} onClick={() => setBottomOpen(value => !value)}>{bottomOpen ? <ChevronDown size={15} /> : <ChevronUp size={15} />}</button>
+        </nav>
+        {bottomOpen && <BottomView tab={bottomTab} session={session} selectedSequence={selectedSequence} onSelect={selectTimeline} step={step} />}
       </section>
     </main>
   </div>
 }
 
-function MainView({ tab, step, selectedObject, onSelectObject }: { tab: MainTab; step: TraceStep | null; selectedObject: string | null; onSelectObject: (id: string) => void }) {
-  if (!step) return <EmptyState />
-  if (tab === 'Stack') return <StackView step={step} onSelectObject={onSelectObject} />
-  if (tab === 'Heap') return <HeapView objects={step.heap} selectedObject={selectedObject} onSelectObject={onSelectObject} />
-  if (tab === 'Strings') return <StringView step={step} onSelectObject={onSelectObject} />
-  if (tab === 'Classes') return <ClassView step={step} />
+function ExecutionStatus({ status, step, error }: { status: SessionStatus | null; step: TraceStep | null; error?: string }) {
+  const value = error ? 'FAILED' : status ?? 'READY'
+  return <div className={`status-pill status-${value.toLowerCase()}`}><span />{value === 'PAUSED' && step ? `Paused · line ${step.location.line}` : statusLabel(status, error)}</div>
+}
+
+function ObjectInspector({ step, objectId, onClose }: { step: TraceStep; objectId: string; onClose: () => void }) {
+  const object = step.heap.find(item => item.id === objectId)
+  if (!object) return null
+  return <aside className="object-inspector">
+    <header><div><span>{object.id}</span><strong>{shortType(object.runtimeType)}</strong></div><button onClick={onClose} aria-label="Close object inspector"><X size={15} /></button></header>
+    {object.displayValue != null && <div className="inspector-string">“{object.displayValue}”</div>}
+    <dl><dt>Runtime type</dt><dd>{object.runtimeType}</dd><dt>Reachability</dt><dd>Tracked root path <EvidenceBadge value="DERIVED" /></dd><dt>Generation</dt><dd>Not observed</dd><dt>Logical identity</dt><dd>{object.id}</dd></dl>
+    <div className="inspector-fields"><span>FIELDS</span>{object.fields.map(field => <div key={`${field.declaringType}-${field.name}`}><b>{field.name}</b><code>{field.value.objectId ?? formatUnknown(field.value.value)}</code></div>)}</div>
+    <p>Physical addresses and exact GC regions are intentionally not inferred.</p>
+  </aside>
+}
+
+function BottomView({ tab, session, selectedSequence, onSelect, step }: { tab: BottomTab; session: Session | null; selectedSequence: number | null; onSelect: (sequence: number) => void; step: TraceStep | null }) {
+  if (tab === 'Console') return <pre className="console"><span className="prompt">stdout ›</span> {step?.stdout || 'No output yet.'}{step?.stderr && <><br /><span className="stderr">stderr › {step.stderr}</span></>}</pre>
+  if (tab === 'Changes') return <ChangesView step={step} />
   if (tab === 'Bytecode') return <BytecodeView step={step} />
-  if (tab === 'Memory') return <MemoryView step={step} />
-  if (tab === 'GC') return <GcView step={step} />
-  if (tab === 'Threads') return <ThreadView step={step} />
-  return <ObjectLayoutView step={step} selectedObject={selectedObject} />
+  if (tab === 'JMM Explorer') return <JmmExplorer step={step} />
+  return <div className="timeline">{session?.trace.map(item => <button key={item.sequence} className={selectedSequence === item.sequence ? 'active' : ''} onClick={() => onSelect(item.sequence)}><span className="timeline-dot" /><b>{item.sequence}</b><span>Line {item.location.line}</span><small>{item.event.replace('_', ' ')}</small></button>)}{!session?.trace.length && <div className="timeline-empty"><Activity size={15} />Execution snapshots will appear here.</div>}</div>
 }
 
-function EmptyState() { return <div className="empty-state"><div className="empty-orbit"><Cpu size={30} /></div><h2>Ready to inspect the JVM</h2><p>Run the sample, then step through real Java execution. The first snapshot will pause at <code>Main.main</code>.</p><div className="evidence-legend"><EvidenceBadge value="OBSERVED" /><EvidenceBadge value="DERIVED" /><EvidenceBadge value="SIMULATED" /></div></div> }
-
-function StackView({ step, onSelectObject }: { step: TraceStep; onSelectObject: (id: string) => void }) { return <div className="stack-list"><div className="section-label">THREAD “{step.thread.name}” · {step.stackFrames.length} FRAME{step.stackFrames.length === 1 ? '' : 'S'}</div>{step.stackFrames.map((frame, index) => <article className="frame-card" key={`${frame.methodName}-${index}`}><header><span className="frame-index">{index}</span><strong>{frame.className}.{frame.methodName}()</strong><span>line {frame.line}</span></header>{frame.thisObjectId && <VariableRow name="this" value={{ kind: 'reference', type: frame.className, value: null, objectId: frame.thisObjectId, evidence: 'OBSERVED' }} onSelect={onSelectObject} />}{frame.locals.map(variable => <VariableRow key={variable.name} name={variable.name} value={variable.value} onSelect={onSelectObject} />)}</article>)}</div> }
-
-function VariableRow({ name, value, onSelect }: { name: string; value: Value; onSelect: (id: string) => void }) { return <div className="variable-row"><span className="variable-name">{name}</span><span className="variable-type">{shortType(value.type)}</span><ValueDisplay value={value} onSelect={onSelect} /></div> }
-
-function ValueDisplay({ value, onSelect }: { value: Value; onSelect: (id: string) => void }) {
-  if (value.kind === 'null') return <span className="null-value">null</span>
-  if (value.objectId) return <button className="object-link" onClick={() => onSelect(value.objectId!)}><span>→</span>{value.objectId}{value.value != null && <em> “{String(value.value)}”</em>}</button>
-  return <span className="primitive-value">{formatValue(value)}</span>
+function ChangesView({ step }: { step: TraceStep | null }) {
+  if (!step) return <div className="bottom-empty">Run the program to see changes between snapshots.</div>
+  const groups = [
+    ['Locals changed', step.diff.localsChanged], ['Objects created', step.diff.objectsCreated],
+    ['Objects changed', step.diff.objectsChanged], ['References changed', step.diff.referencesChanged],
+    ['No longer reachable', step.diff.objectsBecameUnreachable]
+  ] as const
+  return <div className="changes-view"><div className="change-explanation"><strong>What changed</strong><p>{step.diff.explanation}</p></div>{groups.filter(([, values]) => values.length).map(([label, values]) => <div className="change-card" key={label}><span>{label}</span><code>{values.join(', ')}</code></div>)}</div>
 }
 
-function HeapView({ objects, selectedObject, onSelectObject }: { objects: HeapObject[]; selectedObject: string | null; onSelectObject: (id: string) => void }) { return <div className="heap-surface"><div className="section-label">TRACKED OBJECT GRAPH <EvidenceBadge value="DERIVED" /></div>{objects.length === 0 ? <div className="minor-empty">No heap objects are reachable from visible roots at this step.</div> : <div className="object-grid">{objects.map((object, index) => <article className={`object-card ${selectedObject === object.id ? 'selected' : ''} ${index === 0 ? 'fresh' : ''}`} key={object.id} onClick={() => onSelectObject(object.id)}><header><span className="object-id">{object.id}</span><strong>{shortType(object.runtimeType)}</strong>{index === 0 && stepLikeNew(object) && <span className="new-pill">tracked</span>}</header>{object.displayValue != null && <div className="string-value">“{object.displayValue}”</div>}{object.fields.map(field => <div className="field-row" key={`${field.declaringType}.${field.name}`}><span>{field.name}</span><ValueDisplay value={field.value} onSelect={onSelectObject} /></div>)}{object.elements.map((value, i) => <div className="field-row" key={i}><span>[{i}]</span><ValueDisplay value={value} onSelect={onSelectObject} /></div>)}{object.truncated && <div className="truncated">Graph truncated at configured limit</div>}<footer><span className={object.reachable ? 'reachable' : 'unreachable'}>{object.reachable ? '● Reachable' : '○ Unreachable'}</span><EvidenceBadge value={object.reachabilityEvidence} /></footer></article>)}</div>}</div> }
-
-function StringView({ step, onSelectObject }: { step: TraceStep; onSelectObject: (id: string) => void }) {
-  const strings = step.heap.filter(object => object.runtimeType === 'java.lang.String')
-  const aliases = new Map<string, string[]>()
-  step.stackFrames.flatMap(frame => frame.locals).forEach(variable => { if (variable.value.type === 'java.lang.String' && variable.value.objectId) aliases.set(variable.value.objectId, [...(aliases.get(variable.value.objectId) ?? []), variable.name]) })
-  return <div className="string-panel"><div className="notice"><Activity size={16} /><span>Runtime String objects are separate from class-file <code>CONSTANT_String</code> entries.</span><EvidenceBadge value="OBSERVED" /></div>{strings.map(string => <article className="string-row" key={string.id}><div className="string-bubble">“{string.displayValue}”</div><button className="object-link" onClick={() => onSelectObject(string.id)}>{string.id}</button><div className="alias-list">{(aliases.get(string.id) ?? []).map(name => <span key={name}>{name}</span>)}</div></article>)}{strings.length === 0 && <div className="minor-empty">No String is visible from tracked roots.</div>}<p className="technical-note">Intern-pool membership is not inferred from equal text. Aliasing is shown only when JDI reports the same object identity.</p></div>
+function BytecodeView({ step }: { step: TraceStep | null }) {
+  if (!step) return <div className="bottom-empty">Run the program to inspect method-scoped bytecode.</div>
+  const instructions = step.bytecode.filter(instruction => !instruction.methodName || instruction.methodName === step.location.methodName)
+  return <div className="bytecode-view"><div className="bytecode-context"><strong>{step.location.methodName}()</strong><span>BCI {step.location.bytecodeOffset}</span><EvidenceBadge value="OBSERVED" /></div><div>{instructions.slice(0, 100).map(instruction => <code className={instruction.offset === step.location.bytecodeOffset ? 'active' : ''} key={`${instruction.methodName}-${instruction.offset}`}><span>{instruction.offset}</span><b>{instruction.mnemonic}</b>{instruction.detail}</code>)}</div></div>
 }
 
-function ClassView({ step }: { step: TraceStep }) { return <div className="class-list"><div className="notice"><Layers3 size={16} /><span>Method Area is a JVM specification concept. Metaspace is a HotSpot implementation mechanism.</span></div>{step.staticFields.map(state => <article className="class-card" key={state.className}><header><strong>{state.className}</strong><EvidenceBadge value="OBSERVED" /></header><div className="section-label">STATIC FIELDS</div>{state.fields.map(field => <div className="field-row" key={field.name}><span>{field.name}</span><span>{field.value.objectId ?? formatValue(field.value)}</span></div>)}</article>)}{step.staticFields.length === 0 && <div className="minor-empty">No static fields are visible for loaded user classes.</div>}</div> }
-
-function BytecodeView({ step }: { step: TraceStep }) { const nearby = step.bytecode.filter(i => !i.sourceLine || Math.abs((i.sourceLine ?? 0) - step.location.line) <= 1); return <div className="bytecode-list"><div className="bytecode-header"><span>Source line {step.location.line}</span><span>BCI {step.location.bytecodeOffset}</span><EvidenceBadge value="OBSERVED" /></div>{(nearby.length ? nearby : step.bytecode).slice(0, 80).map(instruction => <div className={`instruction ${instruction.offset === step.location.bytecodeOffset ? 'current' : ''}`} key={`${instruction.offset}-${instruction.mnemonic}`}><span>{instruction.offset}</span><strong>{instruction.mnemonic}</strong><code>{instruction.detail}</code></div>)}{step.bytecode.length === 0 && <div className="minor-empty">Bytecode is not available for this frame.</div>}<div className="notice subdued">The source line can map to multiple JVM instructions. Operand-stack simulation is not fabricated in this milestone.</div></div> }
-
-function MemoryView({ step }: { step: TraceStep }) { const m = step.memory; const metrics = [['Heap used', m.heapUsed], ['Heap committed', m.heapCommitted], ['Heap maximum', m.heapMax], ['Non-heap used', m.nonHeapUsed], ['Metaspace', m.metaspaceUsed]] as const; return <div className="memory-view"><div className="metric-grid">{metrics.map(([name, value]) => <article className="metric" key={name}><span>{name}</span><strong>{bytes(value)}</strong><EvidenceBadge value="OBSERVED" /></article>)}</div><div className="runtime-counts"><div><Cpu size={18} /><strong>{m.threadCount < 0 ? '—' : m.threadCount}</strong><span>Threads</span></div><div><Database size={18} /><strong>{m.loadedClasses < 0 ? '—' : m.loadedClasses}</strong><span>Loaded classes</span></div></div><p className="technical-note">Values show aggregate child-JVM telemetry. They are not per-object physical locations.</p></div> }
-
-function GcView({ step }: { step: TraceStep }) { return <div className="gc-view"><div className="generation-track"><section><span>YOUNG</span><div className="generation-box"><strong>Eden</strong><small>newly tracked</small>{step.heap.slice(0, 6).map(o => <span className="object-token" key={o.id}>{o.id}</span>)}</div><div className="generation-box muted"><strong>Survivor</strong><small>educational model</small></div></section><div className="promotion-arrow">→</div><section><span>OLD</span><div className="generation-box muted"><strong>Tenured</strong><small>educational model</small></div></section></div><div className="notice warning"><Zap size={16} /><span>Per-object generation placement is educational. JVM Lens does not claim the exact G1 region for any object.</span><EvidenceBadge value="SIMULATED" /></div></div> }
-
-function ThreadView({ step }: { step: TraceStep }) { return <div className="thread-view"><article className="thread-card"><div className="thread-icon"><Cpu size={22} /></div><div><strong>{step.thread.name}</strong><span>ID {step.thread.id}</span></div><span className="thread-state">{step.thread.state}</span></article><p className="technical-note">The active event thread is observed. Deterministic thread scheduling is not provided.</p></div> }
-
-function ObjectLayoutView({ step, selectedObject }: { step: TraceStep; selectedObject: string | null }) { const object = step.heap.find(item => item.id === selectedObject); return <div className="class-list">{object ? <><article className="class-card"><header><strong>{object.id} · {shortType(object.runtimeType)}</strong></header><div className="field-row"><span>Runtime type</span><span>{object.runtimeType}</span></div><div className="field-row"><span>Logical identity</span><span>{object.id}</span></div></article><div className="notice warning"><Database size={16} /><span>Live debuggee-object offsets, headers, padding, and size are not available in this execution mode. JVM Lens will not substitute a host-JVM class layout.</span></div><p className="technical-note">The backend contains the JOL integration boundary. A child-side probe is required before these values can be labeled as a layout for this runtime object.</p></> : <div className="minor-empty">Select a heap object, then return here to inspect its available layout evidence.</div>}</div> }
-
-function Inspector({ step, selectedObject }: { step: TraceStep | null; selectedObject: string | null }) {
-  if (!step) return <div className="inspector-empty">Select an object or run the program to inspect evidence and changes.</div>
-  const object = step.heap.find(item => item.id === selectedObject)
-  if (object) return <div className="inspector-body"><div className="inspector-object"><span>{object.id}</span><h3>{shortType(object.runtimeType)}</h3><p>Logical JVM Lens Object ID</p></div><dl><dt>Runtime type</dt><dd>{object.runtimeType}</dd><dt>Reachability</dt><dd>{object.reachable ? 'Reachable from tracked roots' : 'Not reachable from tracked roots'} <EvidenceBadge value="DERIVED" /></dd><dt>Generation</dt><dd>{object.simulatedGeneration} <EvidenceBadge value="SIMULATED" /></dd><dt>Physical address</dt><dd>Not exposed</dd></dl><div className="inspector-section"><span>FIELDS</span>{object.fields.map(field => <div key={field.name}><b>{field.name}</b><code>{field.value.objectId ?? formatValue(field.value)}</code></div>)}</div><div className="notice subdued">Object layout requires a runtime JOL query. No offsets are invented here.</div></div>
-  return <div className="inspector-body"><div className="current-location"><span>JUST EXECUTED</span><strong>Line {step.location.line}</strong><code>{step.location.className}.{step.location.methodName}()</code></div><div className="change-summary"><h3>What changed</h3><p>{step.diff.explanation}</p>{step.diff.localsChanged.length > 0 && <Change kind="Local changed" values={step.diff.localsChanged} />}{step.diff.objectsCreated.length > 0 && <Change kind="Object visible" values={step.diff.objectsCreated} />}{step.diff.objectsChanged.length > 0 && <Change kind="Field changed" values={step.diff.objectsChanged} />}{step.diff.objectsBecameUnreachable.length > 0 && <Change kind="Tracked reachability lost" values={step.diff.objectsBecameUnreachable} />}</div><div className="inspector-section"><span>EVIDENCE</span><div><b>Location</b><EvidenceBadge value="OBSERVED" /></div><div><b>Object graph</b><EvidenceBadge value="DERIVED" /></div></div></div>
-}
-
-function Change({ kind, values }: { kind: string; values: string[] }) { return <div className="change"><span>{kind}</span><strong>{values.join(', ')}</strong></div> }
-
-function BottomView({ tab, session, selected, setSelected, step }: { tab: BottomTab; session: Session | null; selected: number; setSelected: (value: number) => void; step: TraceStep | null }) {
-  if (tab === 'Console') return <pre className="console"><span className="prompt">stdout ›</span> {step?.stdout || 'No output yet.'}{step?.stderr && <><br/><span className="stderr">stderr › {step.stderr}</span></>}</pre>
-  if (tab === 'Bytecode') return <div className="bottom-bytecode">{step?.bytecode.slice(0, 24).map(i => <code className={i.offset === step.location.bytecodeOffset ? 'active' : ''} key={i.offset}>{i.offset}: {i.mnemonic}</code>) ?? <span>Run to inspect bytecode.</span>}</div>
-  return <div className="timeline">{session?.trace.map((item, i) => <button key={item.sequence} className={selected === i ? 'active' : ''} onClick={() => setSelected(i)}><span className="timeline-dot" /><b>{item.sequence}</b><span>Line {item.location.line}</span><small>{item.event.replace('_', ' ')}</small></button>)}{!session?.trace.length && <div className="timeline-empty"><Activity size={16} />Execution snapshots will appear here.</div>}</div>
+function JmmExplorer({ step }: { step: TraceStep | null }) {
+  if (!step) return <div className="bottom-empty">Run a threaded example to inspect Java Memory Model evidence.</div>
+  const events = step.jmmEvents ?? []
+  const threads = step.threads?.length ?? 1
+  return <div className="jmm-explorer">
+    <div className="jmm-summary"><div><strong>{threads}</strong><span>visible user thread{threads === 1 ? '' : 's'}</span></div><p>Debugger evidence shows observed frames and derived bytecode events. CPU/JIT reordering is not claimed as directly observed.</p></div>
+    <div className="jmm-events">{events.map((event, index) => <article className={`jmm-event event-${event.type.toLowerCase()}`} key={`${event.type}-${index}`}><header><strong>{event.type.replaceAll('_', ' ')}</strong><EvidenceBadge value={event.evidence} /></header><span>{event.threadName}{event.variable ? ` · ${event.variable}` : ''}</span><p>{event.detail}</p></article>)}{events.length === 0 && <div className="bottom-empty">No field, monitor, volatile, or cross-thread ordering evidence at this source location.</div>}</div>
+  </div>
 }
 
 function EvidenceBadge({ value }: { value: Evidence }) { return <span className={`evidence ${value.toLowerCase()}`}>{value}</span> }
+function statusLabel(status: SessionStatus | null, error?: string) {
+  if (error) return error
+  if (!status) return 'Ready'
+  return ({ COMPILING: 'Compiling', STARTING: 'Starting JVM', RUNNING: 'Running', PAUSED: 'Paused', COMPLETED: 'Finished', FAILED: 'Failed', STOPPED: 'Stopped' } as const)[status]
+}
 function shortType(type: string) { return type?.split('.').pop() ?? type }
-function stepLikeNew(object: HeapObject) { return object.reachable }
-function formatValue(value: Value) { if (value.value === null || value.value === undefined) return value.kind === 'null' ? 'null' : '—'; const raw = String(value.value); return value.type === 'char' ? `'${raw.replaceAll("'", '')}'` : raw }
-function bytes(value: number) { if (value < 0) return 'Unavailable'; if (value < 1024) return `${value} B`; const units = ['KB', 'MB', 'GB']; let size = value / 1024; let i = 0; while (size >= 1024 && i < units.length - 1) { size /= 1024; i++ } return `${size.toFixed(1)} ${units[i]}` }
+function formatUnknown(value: unknown) { return value == null ? 'null' : String(value) }

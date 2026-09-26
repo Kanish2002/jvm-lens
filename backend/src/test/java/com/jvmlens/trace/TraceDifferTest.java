@@ -24,8 +24,8 @@ class TraceDifferTest {
         var variable = new Variable("version", new Value("primitive", "int", value, null, EvidenceType.OBSERVED));
         var frame = new StackFrame("Main", "main", 1, List.of(variable), null);
         return new TraceStep(1, "LINE_STEP", new Location("Main", "main", "Main.java", 1, 0),
-                new ThreadState(1, "main", "RUNNABLE"), List.of(frame), List.of(), List.of(), List.of(),
-                new Memory(-1, -1, -1, -1, -1, -1, -1, EvidenceType.OBSERVED), List.of(), "", "", TraceDiff.empty());
+                new ThreadState(1, "main", "RUNNABLE"), List.of(frame), List.of(), List.of(), List.of(), List.of(),
+                new Memory(-1, -1, -1, -1, -1, -1, -1, EvidenceType.OBSERVED), List.of(), List.of(),
+                "", "", TraceDiff.empty());
     }
 }
-

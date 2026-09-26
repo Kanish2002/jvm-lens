@@ -41,9 +41,12 @@ public class JdiLauncher {
                 .get("options")
                 .setValue(
                         "-cp \"" + classesDirectory + "\" " +
-                                "-XX:+UseG1GC " +
-                                "-Xms32m " +
+                                "-XX:+UseSerialGC " +
+                                "-Xms8m " +
                                 "-Xmx64m " +
+                                "-XX:MaxMetaspaceSize=96m " +
+                                "-XX:ReservedCodeCacheSize=32m " +
+                                "-XX:+ExitOnOutOfMemoryError " +
                                 "-Dfile.encoding=UTF-8"
                 );
 
