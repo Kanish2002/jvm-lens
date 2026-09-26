@@ -3,9 +3,9 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
-    read_only: false
+    read_only: true
     tmpfs:
-      - /tmp/jvm-lens:size=256m,mode=1777
+      - /tmp:size=256m,mode=1777
     mem_limit: 512m
     cpus: 1.0
     pids_limit: 128

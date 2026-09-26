@@ -6,7 +6,7 @@ plugins {
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
@@ -15,8 +15,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-websocket")
 
-    implementation("com.github.javaparser:javaparser-symbol-solver-core:3.27.0")
-    implementation("org.openjdk.jol:jol-core:0.17")
+    implementation("com.github.javaparser:javaparser-core:3.27.0")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
