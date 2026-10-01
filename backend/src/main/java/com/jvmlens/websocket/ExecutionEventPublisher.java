@@ -3,6 +3,8 @@ package com.jvmlens.websocket;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jvmlens.session.ExecutionSession;
 import com.jvmlens.trace.TraceModel.TraceStep;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -15,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class ExecutionEventPublisher {
+    private static final Logger log = LoggerFactory.getLogger(ExecutionEventPublisher.class);
     private final ObjectMapper objectMapper;
     private final Map<UUID, WebSocketSession> sockets = new ConcurrentHashMap<>();
 
@@ -50,8 +53,9 @@ public class ExecutionEventPublisher {
         if (socket == null) return;
         try {
             send(socket, payload);
-        } catch (IOException exception) {
+        } catch (Exception exception) {
             sockets.remove(sessionId, socket);
+            log.debug("Detached closed WebSocket from execution session {}: {}", sessionId, exception.getMessage());
         }
     }
 }

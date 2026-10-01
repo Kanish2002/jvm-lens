@@ -5,6 +5,8 @@ import com.jvmlens.debugger.DebugEventLoop;
 import com.jvmlens.debugger.JdiLauncher;
 import com.jvmlens.parser.SourceAnalyzer;
 import com.jvmlens.session.ExecutionSession.ExecutionCommand;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -13,6 +15,7 @@ import java.util.UUID;
 
 @Service
 public class ExecutionService {
+    private static final Logger log = LoggerFactory.getLogger(ExecutionService.class);
     private final CompilationService compiler;
     private final SourceAnalyzer sourceAnalyzer;
     private final ExecutionSessionManager sessions;
@@ -50,8 +53,9 @@ public class ExecutionService {
             var vm = launcher.launch(compilation.classesDirectory(), mainClass);
             session.virtualMachine(vm);
             session.status(ExecutionSession.SessionStatus.STARTING);
-            Thread.startVirtualThread(() -> eventLoop.run(session, vm, mainClass));
+            Thread.ofPlatform().daemon().name("jvm-lens-debug-" + session.id()).start(() -> eventLoop.run(session, vm, mainClass));
             eventLoopStarted = true;
+            log.info("Execution session {} started for {}", session.id(), mainClass);
             return new StartResult(session.id(), true, session.status().name(),
                     compilation.diagnostics(), analysis, null);
         } catch (Exception exception) {

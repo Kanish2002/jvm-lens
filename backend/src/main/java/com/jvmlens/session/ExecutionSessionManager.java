@@ -1,6 +1,8 @@
 package com.jvmlens.session;
 
 import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -20,6 +22,7 @@ import java.util.concurrent.Semaphore;
 
 @Service
 public class ExecutionSessionManager {
+    private static final Logger log = LoggerFactory.getLogger(ExecutionSessionManager.class);
     private final Path workspace;
     private final int maxHistory;
     private final Duration sessionTtl;
@@ -82,13 +85,21 @@ public class ExecutionSessionManager {
     public void cleanupExpired() {
         Instant cutoff = Instant.now().minus(sessionTtl);
         sessions.values().stream()
-                .filter(session -> session.complete() && session.lastAccessedAt().isBefore(cutoff))
+                .filter(session -> session.lastAccessedAt().isBefore(cutoff))
                 .toList()
-                .forEach(this::remove);
+                .forEach(session -> {
+                    if (!session.complete()) {
+                        log.info("Stopping abandoned execution session {} after {} seconds without client activity",
+                                session.id(), sessionTtl.toSeconds());
+                        stop(session.id());
+                    }
+                    remove(session);
+                });
     }
 
     private void remove(ExecutionSession session) {
         if (!sessions.remove(session.id(), session)) return;
+        release(session);
         Path directory = session.directory().toAbsolutePath().normalize();
         if (!directory.startsWith(workspace) || directory.equals(workspace)) return;
         try (var paths = Files.walk(directory)) {
@@ -100,10 +111,16 @@ public class ExecutionSessionManager {
 
     @PreDestroy
     public void shutdown() {
+        log.info("Backend shutdown requested; stopping {} execution session(s)", sessions.size());
         sessions.values().forEach(session -> {
+            if (!session.complete()) {
+                session.error("The backend instance restarted while this execution was active. Run the code again.");
+                session.complete(true);
+            }
             if (session.virtualMachine() != null) {
                 try { session.virtualMachine().exit(143); } catch (Exception ignored) { }
             }
+            release(session);
         });
     }
 }

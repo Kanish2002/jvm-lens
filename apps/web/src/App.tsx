@@ -4,7 +4,7 @@ import type { editor } from 'monaco-editor'
 import {
   Activity, Braces, ChevronDown, ChevronLeft, ChevronUp, CircleStop,
   Code2, Gauge, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, Play,
-  RotateCcw, StepForward, X, Zap
+  RotateCcw, StepForward, Type, X, Zap
 } from 'lucide-react'
 import { ApiError, fetchSession, mergeSession, sendCommand, startExecution } from './api'
 import { examples, acceptanceExample } from './examples'
@@ -14,7 +14,17 @@ import type { Diagnostic, Evidence, Session, SessionStatus, TraceStep } from './
 
 type BottomTab = 'Timeline' | 'Console' | 'Changes' | 'Bytecode' | 'JMM Explorer'
 type ViewMode = 'Beginner' | 'Intermediate' | 'JVM Internals'
+type UiTextSize = 'standard' | 'large' | 'extra-large'
 const POLL_INTERVAL_MS = 1000
+const UI_TEXT_SIZE_STORAGE_KEY = 'jvm-lens-ui-text-size'
+
+function initialUiTextSize(): UiTextSize {
+  try {
+    const saved = window.localStorage.getItem(UI_TEXT_SIZE_STORAGE_KEY)
+    if (saved === 'standard' || saved === 'large' || saved === 'extra-large') return saved
+  } catch { /* storage can be unavailable in privacy-restricted browsers */ }
+  return 'large'
+}
 
 export function App() {
   const [source, setSource] = useState(acceptanceExample)
@@ -31,6 +41,7 @@ export function App() {
   const [connectionError, setConnectionError] = useState<string | null>(null)
   const [editorOpen, setEditorOpen] = useState(true)
   const [focusMode, setFocusMode] = useState(false)
+  const [uiTextSize, setUiTextSize] = useState<UiTextSize>(initialUiTextSize)
   const [transport, setTransport] = useState<'socket' | 'poll' | null>(null)
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
   const latestSequenceRef = useRef(0)
@@ -99,6 +110,10 @@ export function App() {
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
   }, [])
 
+  useEffect(() => {
+    try { window.localStorage.setItem(UI_TEXT_SIZE_STORAGE_KEY, uiTextSize) } catch { /* keep the in-memory preference */ }
+  }, [uiTextSize])
+
   useEffect(() => () => socketRef.current?.close(), [])
 
   const mountEditor: OnMount = (instance, monaco) => {
@@ -147,7 +162,10 @@ export function App() {
           },
           onError: message => setConnectionError(message),
           onAutoPlay: enabled => setSession(current => current ? { ...current, autoPlay: enabled } : current),
-          onUnexpectedClose: () => setConnectionError('The live debugger connection closed. Run again to create a new pinned execution session.')
+          onUnexpectedClose: () => {
+            setTransport('poll')
+            setConnectionError('The live connection was interrupted. Continuing with resilient polling…')
+          }
         })
         socketRef.current = live
         try {
@@ -186,11 +204,16 @@ export function App() {
     try {
       setConnectionError(null)
       followLiveRef.current = true
-      if (transport === 'socket' && socketRef.current?.isOpen()) socketRef.current.command(name)
-      else {
-        await sendCommand(sessionId, name)
-        window.setTimeout(() => void pullSession(sessionId).catch(() => undefined), 100)
+      if (transport === 'socket' && socketRef.current?.isOpen()) {
+        try {
+          socketRef.current.command(name)
+          return
+        } catch {
+          setTransport('poll')
+        }
       }
+      await sendCommand(sessionId, name)
+      window.setTimeout(() => void pullSession(sessionId).catch(() => undefined), 100)
     } catch (error) {
       setConnectionError(error instanceof Error ? error.message : `Could not send ${name}.`)
     }
@@ -232,7 +255,7 @@ export function App() {
     } catch { setFocusMode(value => !value) }
   }
 
-  return <div className={`app-shell ${focusMode ? 'focus-mode' : ''} ${editorOpen ? '' : 'editor-closed'} ${bottomOpen ? '' : 'bottom-closed'}`}>
+  return <div data-ui-text-size={uiTextSize} className={`app-shell ${focusMode ? 'focus-mode' : ''} ${editorOpen ? '' : 'editor-closed'} ${bottomOpen ? '' : 'bottom-closed'}`}>
     <header className="topbar">
       <div className="brand"><div className="brand-mark"><Braces size={19} /></div><div><strong>JVM Lens</strong><span>Java memory, connected</span></div></div>
       <div className="run-controls">
@@ -247,6 +270,14 @@ export function App() {
         <button className={session?.autoPlay ? 'active' : ''} onClick={() => void command('auto')} disabled={!sessionId || session?.complete}><Zap size={14} />Auto</button>
       </div>
       <div className="header-actions">
+        <label className="ui-text-size" title="Interface text size">
+          <Type size={15} aria-hidden="true" />
+          <select aria-label="Interface text size" value={uiTextSize} onChange={event => setUiTextSize(event.target.value as UiTextSize)}>
+            <option value="standard">Standard</option>
+            <option value="large">Large</option>
+            <option value="extra-large">Extra large</option>
+          </select>
+        </label>
         <div className="view-switch" role="group" aria-label="View mode">{(['Beginner', 'Intermediate', 'JVM Internals'] as ViewMode[]).map(item => <button key={item} className={mode === item ? 'selected' : ''} onClick={() => setMode(item)}>{item}</button>)}</div>
         <button className="icon-button" aria-label={editorOpen ? 'Hide editor' : 'Show editor'} onClick={() => setEditorOpen(value => !value)}>{editorOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}</button>
         <button className="icon-button" aria-label="Toggle full screen" onClick={() => void toggleFullscreen()}>{focusMode ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>
