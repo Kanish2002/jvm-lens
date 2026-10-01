@@ -9,7 +9,7 @@ public final class ConsoleCapture {
 
     public ConsoleCapture(InputStream stream, int limit) {
         this.limit = limit;
-        Thread.startVirtualThread(() -> read(stream));
+        Thread.ofPlatform().daemon().name("jvm-lens-console-reader").start(() -> read(stream));
     }
     private void read(InputStream stream) {
         byte[] bytes = new byte[4096];
@@ -24,4 +24,3 @@ public final class ConsoleCapture {
     }
     public synchronized String value() { return buffer.toString(); }
 }
-

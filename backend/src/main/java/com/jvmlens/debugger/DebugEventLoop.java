@@ -68,7 +68,7 @@ public class DebugEventLoop {
         var probe = memory.createProbe();
         session.status(SessionStatus.STARTING);
         try {
-            Thread.startVirtualThread(() -> probe.connect(vm));
+            Thread.ofPlatform().daemon().name("jvm-lens-probe-" + session.id()).start(() -> probe.connect(vm));
             installRequests(session, vm, mainClass);
             session.status(SessionStatus.RUNNING);
             boolean alive = true;
@@ -107,6 +107,8 @@ public class DebugEventLoop {
         } finally {
             session.complete(true);
             events.complete(session);
+            log.info("Execution session {} completed with status {} after {} steps{}", session.id(),
+                    session.status(), session.stepCount(), session.error() == null ? "" : ": " + session.error());
             try { vm.dispose(); } catch (Exception ignored) { }
             probe.close();
             bytecode.clear(session.directory().resolve("classes"));
