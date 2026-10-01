@@ -17,10 +17,3 @@ export interface TraceStep { sequence: number; event: string; location: { classN
 export interface Diagnostic { file: string; line: number; column: number; kind: string; message: string }
 export interface Session { sessionId: string; status: SessionStatus; complete: boolean; error?: string; autoPlay: boolean; historyStartSequence: number; latestSequence: number; reset: boolean; trace: TraceStep[] }
 export interface StartResponse { sessionId: string; compiled: boolean; status: SessionStatus; diagnostics: Diagnostic[]; error?: string }
-
-export interface ReferenceEdge {
-  id: string
-  sourceLabel: string
-  targetId: string
-  kind: 'stack' | 'field' | 'static'
-}
