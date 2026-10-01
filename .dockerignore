@@ -1,7 +1,0 @@
-.git
-.gradle
-**/build
-**/node_modules
-**/dist
-.idea
-*.hprof

@@ -5,7 +5,7 @@ import { App } from './App'
 vi.mock('@monaco-editor/react', () => ({ default: () => <div data-testid="editor" /> }))
 
 describe('JVM Lens workspace', () => {
-  afterEach(() => { cleanup(); vi.restoreAllMocks() })
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); window.localStorage.clear() })
 
   it('opens directly on the execution workspace', () => {
     render(<App />)
@@ -24,5 +24,19 @@ describe('JVM Lens workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: /^run$/i }))
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Backend unavailable'))
     expect(screen.getByText('Run Java to see one connected memory model')).toBeInTheDocument()
+  })
+
+  it('uses readable UI text by default and persists text-size changes', () => {
+    const { container } = render(<App />)
+    const shell = container.querySelector('.app-shell')
+    const textSize = screen.getByRole('combobox', { name: 'Interface text size' })
+
+    expect(shell).toHaveAttribute('data-ui-text-size', 'large')
+    expect(textSize).toHaveValue('large')
+
+    fireEvent.change(textSize, { target: { value: 'extra-large' } })
+
+    expect(shell).toHaveAttribute('data-ui-text-size', 'extra-large')
+    expect(window.localStorage.getItem('jvm-lens-ui-text-size')).toBe('extra-large')
   })
 })

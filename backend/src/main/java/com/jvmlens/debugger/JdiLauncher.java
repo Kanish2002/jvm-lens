@@ -43,9 +43,11 @@ public class JdiLauncher {
                         "-cp \"" + classesDirectory + "\" " +
                                 "-XX:+UseSerialGC " +
                                 "-Xms8m " +
-                                "-Xmx64m " +
-                                "-XX:MaxMetaspaceSize=96m " +
-                                "-XX:ReservedCodeCacheSize=32m " +
+                                "-Xmx48m " +
+                                "-XX:MaxMetaspaceSize=64m " +
+                                "-XX:MaxDirectMemorySize=16m " +
+                                "-XX:ReservedCodeCacheSize=24m " +
+                                "-XX:ActiveProcessorCount=2 " +
                                 "-XX:+ExitOnOutOfMemoryError " +
                                 "-Dfile.encoding=UTF-8"
                 );

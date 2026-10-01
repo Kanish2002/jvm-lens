@@ -97,7 +97,6 @@ public final class ExecutionSession {
             if (autoPlay.get()) { status.set(SessionStatus.RUNNING); return ExecutionCommand.OVER; }
             command = commands.poll(30, TimeUnit.SECONDS);
             if (command != null) { status.set(SessionStatus.RUNNING); return command; }
-            touch();
         }
     }
     public void autoPlay(boolean enabled) {

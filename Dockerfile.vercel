@@ -23,6 +23,14 @@ RUN useradd --system --uid 10001 jvmlens
 USER 10001
 
 ENV JVM_LENS_WORKSPACE=/tmp/jvm-lens
-ENV JAVA_TOOL_OPTIONS="-Xms64m -Xmx384m -XX:+UseSerialGC -XX:MaxMetaspaceSize=192m -XX:MaxDirectMemorySize=64m -XX:+ExitOnOutOfMemoryError"
+ENV JVM_LENS_MAX_CONCURRENT_EXECUTIONS=1
+ENV JVM_LENS_MAX_HISTORY=160
+ENV JVM_LENS_SESSION_TTL_SECONDS=300
+ENV JVM_LENS_MAX_STEPS=600
+ENV JVM_LENS_MAX_OBJECTS=80
+ENV JVM_LENS_MAX_DEPTH=2
+ENV JVM_LENS_MAX_ARRAY_ELEMENTS=30
+ENV JVM_LENS_MAX_OUTPUT_BYTES=65536
+ENV JAVA_TOOL_OPTIONS="-Xms32m -Xmx256m -XX:+UseSerialGC -XX:MaxMetaspaceSize=128m -XX:MaxDirectMemorySize=32m -XX:ReservedCodeCacheSize=48m -XX:ActiveProcessorCount=2 -XX:+ExitOnOutOfMemoryError"
 
 ENTRYPOINT ["sh", "-c", "mkdir -p /tmp/jvm-lens && exec java -Djava.io.tmpdir=/tmp -jar /app/app.jar"]
