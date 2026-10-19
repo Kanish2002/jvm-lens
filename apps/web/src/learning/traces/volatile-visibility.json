@@ -1,0 +1,1248 @@
+{
+  "id": "volatile-visibility",
+  "title": "Make the write visible.",
+  "subtitle": "Java Memory Model · publication",
+  "misconception": "If one thread changes a shared variable, every other thread immediately sees it.",
+  "mode": "jmm",
+  "evidence": "curated",
+  "note": "Illustrative allowed interleavings, not a scheduler or literal CPU cache simulation. Main Memory shows shared writes; lanes show read observations. Other schedules can skip the conditional print.",
+  "code": "public class Main {\n  static int data = 0;\n  static volatile boolean ready = false;\n  static void writer() {\n    data = 42;\n    ready = true;\n  }\n  static void reader() { // scheduled after writer in this trace\n    if (ready) System.out.println(data);\n  }\n  public static void main(String[] args) throws Exception {\n    Thread r = new Thread(Main::reader);\n    Thread w = new Thread(Main::writer);\n    r.start(); w.start();\n    r.join(); w.join();\n  }\n}",
+  "steps": [
+    {
+      "id": "v1",
+      "line": 3,
+      "stack": [],
+      "heap": [],
+      "statics": [],
+      "threads": [
+        {
+          "id": "writer",
+          "name": "Writer",
+          "line": 5,
+          "state": "running",
+          "observations": [
+            {
+              "id": "w.data",
+              "name": "data",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 0
+              }
+            },
+            {
+              "id": "w.ready",
+              "name": "ready",
+              "value": {
+                "kind": "primitive",
+                "type": "boolean",
+                "value": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "reader",
+          "name": "Reader",
+          "line": 9,
+          "state": "running",
+          "observations": [
+            {
+              "id": "r.data",
+              "name": "data",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 0
+              }
+            },
+            {
+              "id": "r.ready",
+              "name": "ready",
+              "value": {
+                "kind": "primitive",
+                "type": "boolean",
+                "value": false
+              }
+            }
+          ],
+          "stale": []
+        }
+      ],
+      "event": "start",
+      "explanation": "Two threads share data and ready. Their initial values are 0 and false.",
+      "diff": {
+        "added": [
+          "shared.data",
+          "shared.ready",
+          "writer",
+          "w.data",
+          "w.ready",
+          "reader",
+          "r.data",
+          "r.ready"
+        ],
+        "removed": [],
+        "changed": []
+      },
+      "shared": [
+        {
+          "id": "shared.data",
+          "name": "data",
+          "value": {
+            "kind": "primitive",
+            "type": "int",
+            "value": 0
+          }
+        },
+        {
+          "id": "shared.ready",
+          "name": "ready",
+          "value": {
+            "kind": "primitive",
+            "type": "boolean",
+            "value": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "v2",
+      "line": 5,
+      "stack": [],
+      "heap": [],
+      "statics": [],
+      "threads": [
+        {
+          "id": "writer",
+          "name": "Writer",
+          "line": 5,
+          "state": "running",
+          "observations": [
+            {
+              "id": "w.data",
+              "name": "data",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 42
+              }
+            },
+            {
+              "id": "w.ready",
+              "name": "ready",
+              "value": {
+                "kind": "primitive",
+                "type": "boolean",
+                "value": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "reader",
+          "name": "Reader",
+          "line": 9,
+          "state": "running",
+          "observations": [
+            {
+              "id": "r.data",
+              "name": "data",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 0
+              }
+            },
+            {
+              "id": "r.ready",
+              "name": "ready",
+              "value": {
+                "kind": "primitive",
+                "type": "boolean",
+                "value": false
+              }
+            }
+          ],
+          "stale": []
+        }
+      ],
+      "event": "write",
+      "explanation": "Writer stores data = 42. Reader has not observed that write yet.",
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          "shared.data",
+          "writer",
+          "w.data"
+        ]
+      },
+      "shared": [
+        {
+          "id": "shared.data",
+          "name": "data",
+          "value": {
+            "kind": "primitive",
+            "type": "int",
+            "value": 42
+          }
+        },
+        {
+          "id": "shared.ready",
+          "name": "ready",
+          "value": {
+            "kind": "primitive",
+            "type": "boolean",
+            "value": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "v3",
+      "line": 6,
+      "stack": [],
+      "heap": [],
+      "statics": [],
+      "threads": [
+        {
+          "id": "writer",
+          "name": "Writer",
+          "line": 5,
+          "state": "running",
+          "observations": [
+            {
+              "id": "w.data",
+              "name": "data",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 42
+              }
+            },
+            {
+              "id": "w.ready",
+              "name": "ready",
+              "value": {
+                "kind": "primitive",
+                "type": "boolean",
+                "value": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "reader",
+          "name": "Reader",
+          "line": 9,
+          "state": "running",
+          "observations": [
+            {
+              "id": "r.data",
+              "name": "data",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 0
+              }
+            },
+            {
+              "id": "r.ready",
+              "name": "ready",
+              "value": {
+                "kind": "primitive",
+                "type": "boolean",
+                "value": false
+              }
+            }
+          ],
+          "stale": []
+        }
+      ],
+      "event": "write",
+      "explanation": "Writer publishes ready = true with a volatile write.",
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          "shared.ready",
+          "writer",
+          "w.ready"
+        ]
+      },
+      "shared": [
+        {
+          "id": "shared.data",
+          "name": "data",
+          "value": {
+            "kind": "primitive",
+            "type": "int",
+            "value": 42
+          }
+        },
+        {
+          "id": "shared.ready",
+          "name": "ready",
+          "value": {
+            "kind": "primitive",
+            "type": "boolean",
+            "value": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "v4",
+      "line": 8,
+      "stack": [],
+      "heap": [],
+      "statics": [],
+      "threads": [
+        {
+          "id": "writer",
+          "name": "Writer",
+          "line": 5,
+          "state": "running",
+          "observations": [
+            {
+              "id": "w.data",
+              "name": "data",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 42
+              }
+            },
+            {
+              "id": "w.ready",
+              "name": "ready",
+              "value": {
+                "kind": "primitive",
+                "type": "boolean",
+                "value": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "reader",
+          "name": "Reader",
+          "line": 9,
+          "state": "running",
+          "observations": [
+            {
+              "id": "r.data",
+              "name": "data",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 42
+              }
+            },
+            {
+              "id": "r.ready",
+              "name": "ready",
+              "value": {
+                "kind": "primitive",
+                "type": "boolean",
+                "value": true
+              }
+            }
+          ],
+          "stale": []
+        }
+      ],
+      "event": "happens-before",
+      "explanation": "Reader observes the volatile write to ready. This establishes a happens-before edge.",
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          "reader",
+          "r.data",
+          "r.ready"
+        ]
+      },
+      "shared": [
+        {
+          "id": "shared.data",
+          "name": "data",
+          "value": {
+            "kind": "primitive",
+            "type": "int",
+            "value": 42
+          }
+        },
+        {
+          "id": "shared.ready",
+          "name": "ready",
+          "value": {
+            "kind": "primitive",
+            "type": "boolean",
+            "value": true
+          }
+        }
+      ],
+      "happensBefore": {
+        "from": "writer",
+        "to": "reader",
+        "reason": "volatile write → subsequent read"
+      }
+    },
+    {
+      "id": "v5",
+      "line": 9,
+      "stack": [],
+      "heap": [],
+      "statics": [],
+      "threads": [
+        {
+          "id": "writer",
+          "name": "Writer",
+          "line": 5,
+          "state": "running",
+          "observations": [
+            {
+              "id": "w.data",
+              "name": "data",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 42
+              }
+            },
+            {
+              "id": "w.ready",
+              "name": "ready",
+              "value": {
+                "kind": "primitive",
+                "type": "boolean",
+                "value": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "reader",
+          "name": "Reader",
+          "line": 9,
+          "state": "running",
+          "observations": [
+            {
+              "id": "r.data",
+              "name": "data",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 42
+              }
+            },
+            {
+              "id": "r.ready",
+              "name": "ready",
+              "value": {
+                "kind": "primitive",
+                "type": "boolean",
+                "value": true
+              }
+            }
+          ],
+          "stale": []
+        }
+      ],
+      "event": "read",
+      "explanation": "Reading ready publishes the earlier data write. Reader must observe data = 42.",
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": []
+      },
+      "shared": [
+        {
+          "id": "shared.data",
+          "name": "data",
+          "value": {
+            "kind": "primitive",
+            "type": "int",
+            "value": 42
+          }
+        },
+        {
+          "id": "shared.ready",
+          "name": "ready",
+          "value": {
+            "kind": "primitive",
+            "type": "boolean",
+            "value": true
+          }
+        }
+      ],
+      "output": "42",
+      "prediction": {
+        "id": "volatile-data",
+        "question": "After observing ready == true, what must Reader print?",
+        "options": [
+          "Always 0",
+          "Always 42",
+          "Either 0 or 42"
+        ],
+        "correct": 1,
+        "why": "The volatile read observes the write of true. The earlier data write happens-before the later read."
+      }
+    }
+  ],
+  "alternatives": [
+    {
+      "label": "Reader runs before publication",
+      "steps": [
+        {
+          "id": "early",
+          "line": 8,
+          "stack": [],
+          "heap": [],
+          "statics": [],
+          "threads": [
+            {
+              "id": "reader",
+              "name": "Reader",
+              "line": 8,
+              "state": "done",
+              "observations": [
+                {
+                  "id": "r.ready",
+                  "name": "ready",
+                  "value": {
+                    "kind": "primitive",
+                    "type": "boolean",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          ],
+          "event": "read",
+          "explanation": "Reader runs first and sees ready = false, so it skips the print.",
+          "diff": {
+            "added": [
+              "shared.data",
+              "shared.ready",
+              "reader",
+              "r.ready"
+            ],
+            "removed": [],
+            "changed": []
+          },
+          "shared": [
+            {
+              "id": "shared.data",
+              "name": "data",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 0
+              }
+            },
+            {
+              "id": "shared.ready",
+              "name": "ready",
+              "value": {
+                "kind": "primitive",
+                "type": "boolean",
+                "value": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "early0",
+          "line": 3,
+          "stack": [],
+          "heap": [],
+          "statics": [],
+          "threads": [
+            {
+              "id": "writer",
+              "name": "Writer",
+              "line": 5,
+              "state": "running",
+              "observations": [
+                {
+                  "id": "w.data",
+                  "name": "data",
+                  "value": {
+                    "kind": "primitive",
+                    "type": "int",
+                    "value": 0
+                  }
+                },
+                {
+                  "id": "w.ready",
+                  "name": "ready",
+                  "value": {
+                    "kind": "primitive",
+                    "type": "boolean",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          ],
+          "event": "start",
+          "explanation": "Two threads share data and ready. Their initial values are 0 and false.",
+          "diff": {
+            "added": [
+              "writer",
+              "w.data",
+              "w.ready"
+            ],
+            "removed": [
+              "reader",
+              "r.ready"
+            ],
+            "changed": []
+          },
+          "shared": [
+            {
+              "id": "shared.data",
+              "name": "data",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 0
+              }
+            },
+            {
+              "id": "shared.ready",
+              "name": "ready",
+              "value": {
+                "kind": "primitive",
+                "type": "boolean",
+                "value": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "early1",
+          "line": 5,
+          "stack": [],
+          "heap": [],
+          "statics": [],
+          "threads": [
+            {
+              "id": "writer",
+              "name": "Writer",
+              "line": 5,
+              "state": "running",
+              "observations": [
+                {
+                  "id": "w.data",
+                  "name": "data",
+                  "value": {
+                    "kind": "primitive",
+                    "type": "int",
+                    "value": 42
+                  }
+                },
+                {
+                  "id": "w.ready",
+                  "name": "ready",
+                  "value": {
+                    "kind": "primitive",
+                    "type": "boolean",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          ],
+          "event": "write",
+          "explanation": "Writer stores data = 42. Reader has not observed that write yet.",
+          "diff": {
+            "added": [],
+            "removed": [],
+            "changed": [
+              "shared.data",
+              "writer",
+              "w.data"
+            ]
+          },
+          "shared": [
+            {
+              "id": "shared.data",
+              "name": "data",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 42
+              }
+            },
+            {
+              "id": "shared.ready",
+              "name": "ready",
+              "value": {
+                "kind": "primitive",
+                "type": "boolean",
+                "value": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "early2",
+          "line": 6,
+          "stack": [],
+          "heap": [],
+          "statics": [],
+          "threads": [
+            {
+              "id": "writer",
+              "name": "Writer",
+              "line": 5,
+              "state": "running",
+              "observations": [
+                {
+                  "id": "w.data",
+                  "name": "data",
+                  "value": {
+                    "kind": "primitive",
+                    "type": "int",
+                    "value": 42
+                  }
+                },
+                {
+                  "id": "w.ready",
+                  "name": "ready",
+                  "value": {
+                    "kind": "primitive",
+                    "type": "boolean",
+                    "value": true
+                  }
+                }
+              ]
+            }
+          ],
+          "event": "write",
+          "explanation": "Writer publishes later. Reader already returned, so there is no output.",
+          "diff": {
+            "added": [],
+            "removed": [],
+            "changed": [
+              "shared.ready",
+              "writer",
+              "w.ready"
+            ]
+          },
+          "shared": [
+            {
+              "id": "shared.data",
+              "name": "data",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 42
+              }
+            },
+            {
+              "id": "shared.ready",
+              "name": "ready",
+              "value": {
+                "kind": "primitive",
+                "type": "boolean",
+                "value": true
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "compare": {
+    "title": "Without volatile · allowed stale read",
+    "code": "public class Main {\n  static int data = 0;\n  static boolean ready = false;\n  static void writer() {\n    data = 42;\n    ready = true;\n  }\n  static void reader() { // scheduled after writer in this trace\n    if (ready) System.out.println(data);\n  }\n  public static void main(String[] args) throws Exception {\n    Thread r = new Thread(Main::reader);\n    Thread w = new Thread(Main::writer);\n    r.start(); w.start();\n    r.join(); w.join();\n  }\n}",
+    "steps": [
+      {
+        "id": "v1",
+        "line": 3,
+        "stack": [],
+        "heap": [],
+        "statics": [],
+        "threads": [
+          {
+            "id": "writer",
+            "name": "Writer",
+            "line": 5,
+            "state": "running",
+            "observations": [
+              {
+                "id": "w.data",
+                "name": "data",
+                "value": {
+                  "kind": "primitive",
+                  "type": "int",
+                  "value": 0
+                }
+              },
+              {
+                "id": "w.ready",
+                "name": "ready",
+                "value": {
+                  "kind": "primitive",
+                  "type": "boolean",
+                  "value": false
+                }
+              }
+            ]
+          },
+          {
+            "id": "reader",
+            "name": "Reader",
+            "line": 9,
+            "state": "running",
+            "observations": [
+              {
+                "id": "r.data",
+                "name": "data",
+                "value": {
+                  "kind": "primitive",
+                  "type": "int",
+                  "value": 0
+                }
+              },
+              {
+                "id": "r.ready",
+                "name": "ready",
+                "value": {
+                  "kind": "primitive",
+                  "type": "boolean",
+                  "value": false
+                }
+              }
+            ],
+            "stale": []
+          }
+        ],
+        "event": "start",
+        "explanation": "Two threads share data and ready. Their initial values are 0 and false.",
+        "diff": {
+          "added": [
+            "shared.data",
+            "shared.ready",
+            "writer",
+            "w.data",
+            "w.ready",
+            "reader",
+            "r.data",
+            "r.ready"
+          ],
+          "removed": [],
+          "changed": []
+        },
+        "shared": [
+          {
+            "id": "shared.data",
+            "name": "data",
+            "value": {
+              "kind": "primitive",
+              "type": "int",
+              "value": 0
+            }
+          },
+          {
+            "id": "shared.ready",
+            "name": "ready",
+            "value": {
+              "kind": "primitive",
+              "type": "boolean",
+              "value": false
+            }
+          }
+        ]
+      },
+      {
+        "id": "v2",
+        "line": 5,
+        "stack": [],
+        "heap": [],
+        "statics": [],
+        "threads": [
+          {
+            "id": "writer",
+            "name": "Writer",
+            "line": 5,
+            "state": "running",
+            "observations": [
+              {
+                "id": "w.data",
+                "name": "data",
+                "value": {
+                  "kind": "primitive",
+                  "type": "int",
+                  "value": 42
+                }
+              },
+              {
+                "id": "w.ready",
+                "name": "ready",
+                "value": {
+                  "kind": "primitive",
+                  "type": "boolean",
+                  "value": false
+                }
+              }
+            ]
+          },
+          {
+            "id": "reader",
+            "name": "Reader",
+            "line": 9,
+            "state": "running",
+            "observations": [
+              {
+                "id": "r.data",
+                "name": "data",
+                "value": {
+                  "kind": "primitive",
+                  "type": "int",
+                  "value": 0
+                }
+              },
+              {
+                "id": "r.ready",
+                "name": "ready",
+                "value": {
+                  "kind": "primitive",
+                  "type": "boolean",
+                  "value": false
+                }
+              }
+            ],
+            "stale": []
+          }
+        ],
+        "event": "write",
+        "explanation": "Writer stores data = 42. Reader has not observed that write yet.",
+        "diff": {
+          "added": [],
+          "removed": [],
+          "changed": [
+            "shared.data",
+            "writer",
+            "w.data"
+          ]
+        },
+        "shared": [
+          {
+            "id": "shared.data",
+            "name": "data",
+            "value": {
+              "kind": "primitive",
+              "type": "int",
+              "value": 42
+            }
+          },
+          {
+            "id": "shared.ready",
+            "name": "ready",
+            "value": {
+              "kind": "primitive",
+              "type": "boolean",
+              "value": false
+            }
+          }
+        ]
+      },
+      {
+        "id": "v3",
+        "line": 6,
+        "stack": [],
+        "heap": [],
+        "statics": [],
+        "threads": [
+          {
+            "id": "writer",
+            "name": "Writer",
+            "line": 5,
+            "state": "running",
+            "observations": [
+              {
+                "id": "w.data",
+                "name": "data",
+                "value": {
+                  "kind": "primitive",
+                  "type": "int",
+                  "value": 42
+                }
+              },
+              {
+                "id": "w.ready",
+                "name": "ready",
+                "value": {
+                  "kind": "primitive",
+                  "type": "boolean",
+                  "value": true
+                }
+              }
+            ]
+          },
+          {
+            "id": "reader",
+            "name": "Reader",
+            "line": 9,
+            "state": "running",
+            "observations": [
+              {
+                "id": "r.data",
+                "name": "data",
+                "value": {
+                  "kind": "primitive",
+                  "type": "int",
+                  "value": 0
+                }
+              },
+              {
+                "id": "r.ready",
+                "name": "ready",
+                "value": {
+                  "kind": "primitive",
+                  "type": "boolean",
+                  "value": false
+                }
+              }
+            ],
+            "stale": []
+          }
+        ],
+        "event": "write",
+        "explanation": "Writer stores ready = true without a publication guarantee.",
+        "diff": {
+          "added": [],
+          "removed": [],
+          "changed": [
+            "shared.ready",
+            "writer",
+            "w.ready"
+          ]
+        },
+        "shared": [
+          {
+            "id": "shared.data",
+            "name": "data",
+            "value": {
+              "kind": "primitive",
+              "type": "int",
+              "value": 42
+            }
+          },
+          {
+            "id": "shared.ready",
+            "name": "ready",
+            "value": {
+              "kind": "primitive",
+              "type": "boolean",
+              "value": true
+            }
+          }
+        ]
+      },
+      {
+        "id": "v4",
+        "line": 8,
+        "stack": [],
+        "heap": [],
+        "statics": [],
+        "threads": [
+          {
+            "id": "writer",
+            "name": "Writer",
+            "line": 5,
+            "state": "running",
+            "observations": [
+              {
+                "id": "w.data",
+                "name": "data",
+                "value": {
+                  "kind": "primitive",
+                  "type": "int",
+                  "value": 42
+                }
+              },
+              {
+                "id": "w.ready",
+                "name": "ready",
+                "value": {
+                  "kind": "primitive",
+                  "type": "boolean",
+                  "value": true
+                }
+              }
+            ]
+          },
+          {
+            "id": "reader",
+            "name": "Reader",
+            "line": 9,
+            "state": "running",
+            "observations": [
+              {
+                "id": "r.data",
+                "name": "data",
+                "value": {
+                  "kind": "primitive",
+                  "type": "int",
+                  "value": 0
+                }
+              },
+              {
+                "id": "r.ready",
+                "name": "ready",
+                "value": {
+                  "kind": "primitive",
+                  "type": "boolean",
+                  "value": true
+                }
+              }
+            ],
+            "stale": [
+              "r.data"
+            ]
+          }
+        ],
+        "event": "read",
+        "explanation": "Reader sees ready = true, but may still read the old data value.",
+        "diff": {
+          "added": [],
+          "removed": [],
+          "changed": [
+            "reader",
+            "r.ready"
+          ]
+        },
+        "shared": [
+          {
+            "id": "shared.data",
+            "name": "data",
+            "value": {
+              "kind": "primitive",
+              "type": "int",
+              "value": 42
+            }
+          },
+          {
+            "id": "shared.ready",
+            "name": "ready",
+            "value": {
+              "kind": "primitive",
+              "type": "boolean",
+              "value": true
+            }
+          }
+        ]
+      },
+      {
+        "id": "v5",
+        "line": 9,
+        "stack": [],
+        "heap": [],
+        "statics": [],
+        "threads": [
+          {
+            "id": "writer",
+            "name": "Writer",
+            "line": 5,
+            "state": "running",
+            "observations": [
+              {
+                "id": "w.data",
+                "name": "data",
+                "value": {
+                  "kind": "primitive",
+                  "type": "int",
+                  "value": 42
+                }
+              },
+              {
+                "id": "w.ready",
+                "name": "ready",
+                "value": {
+                  "kind": "primitive",
+                  "type": "boolean",
+                  "value": true
+                }
+              }
+            ]
+          },
+          {
+            "id": "reader",
+            "name": "Reader",
+            "line": 9,
+            "state": "running",
+            "observations": [
+              {
+                "id": "r.data",
+                "name": "data",
+                "value": {
+                  "kind": "primitive",
+                  "type": "int",
+                  "value": 0
+                }
+              },
+              {
+                "id": "r.ready",
+                "name": "ready",
+                "value": {
+                  "kind": "primitive",
+                  "type": "boolean",
+                  "value": true
+                }
+              }
+            ],
+            "stale": [
+              "r.data"
+            ]
+          }
+        ],
+        "event": "read",
+        "explanation": "This allowed execution prints 0. Without happens-before, visibility is not guaranteed.",
+        "diff": {
+          "added": [],
+          "removed": [],
+          "changed": []
+        },
+        "shared": [
+          {
+            "id": "shared.data",
+            "name": "data",
+            "value": {
+              "kind": "primitive",
+              "type": "int",
+              "value": 42
+            }
+          },
+          {
+            "id": "shared.ready",
+            "name": "ready",
+            "value": {
+              "kind": "primitive",
+              "type": "boolean",
+              "value": true
+            }
+          }
+        ],
+        "output": "0",
+        "prediction": {
+          "id": "plain-data",
+          "question": "Without synchronization, which outcome is allowed?",
+          "options": [
+            "Only 42",
+            "0 or 42; it may skip printing",
+            "A compile error"
+          ],
+          "correct": 1,
+          "why": "There is a data race. Seeing ready does not guarantee seeing data; the conditional may also see false and skip printing."
+        }
+      }
+    ]
+  }
+}
