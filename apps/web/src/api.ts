@@ -11,9 +11,10 @@ async function json<T>(response: Response): Promise<T> {
   return body as T
 }
 
-export async function startExecution(source: string): Promise<StartResponse> {
+export async function startExecution(source: string, signal?: AbortSignal): Promise<StartResponse> {
   const result = await json<StartResponse>(await fetch('/api/executions', {
     method: 'POST',
+    signal,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ sources: { 'Main.java': source }, mainClass: 'Main' })
   }))

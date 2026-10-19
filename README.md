@@ -1,5 +1,7 @@
 # JVM Lens
 
+The default frontend now opens a trace-driven learning workspace with aliasing, prediction questions, ten misconception lessons, GC reachability, and volatile/synchronized/join demonstrations. The original live JVM inspector remains at `?view=live`. See [the component tree, Step schema, traces, and validation notes](docs/LEARNING_WORKSPACE.md).
+
 JVM Lens is an interactive Java execution and JVM memory visualizer. It compiles source with the real `javac -g`, launches a bounded child JVM, controls it through JDI, and turns each suspension into a `TraceStep` for a connected React memory workspace.
 
 The project does **not** interpret Java and does not fabricate JVM internals.

@@ -1,0 +1,691 @@
+{
+  "id": "aliasing",
+  "title": "Two names. One object.",
+  "subtitle": "References & aliasing",
+  "misconception": "Assigning an object to another variable creates a second object.",
+  "mode": "memory",
+  "evidence": "curated",
+  "note": "Curated teaching trace. GC is simulated; System.gc() is a request, never a guarantee. Pooled literals are kept as modeled roots in this example.",
+  "code": "public class Main {\n  static class Person { String name; Person(String n) { name = n; } }\n  public static void main(String[] args) {\n    // Start here\n    int n = 7;\n    Person p1 = new Person(\"Ana\");\n    Person p2 = p1;\n    p2.name = \"Bo\";\n    System.out.println(p1.name);\n    p1 = null;\n    p2 = null;\n    System.gc(); // request collection\n  }\n}",
+  "steps": [
+    {
+      "id": "a1",
+      "line": 4,
+      "stack": [
+        {
+          "id": "main",
+          "method": "main",
+          "args": "String[] args",
+          "locals": []
+        }
+      ],
+      "heap": [],
+      "statics": [],
+      "threads": [],
+      "event": "start",
+      "explanation": "main starts. Each method call gets its own stack frame.",
+      "diff": {
+        "added": [
+          "main"
+        ],
+        "removed": [],
+        "changed": []
+      }
+    },
+    {
+      "id": "a2",
+      "line": 5,
+      "stack": [
+        {
+          "id": "main",
+          "method": "main",
+          "args": "String[] args",
+          "locals": [
+            {
+              "id": "n",
+              "name": "n",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 7
+              }
+            }
+          ]
+        }
+      ],
+      "heap": [],
+      "statics": [],
+      "threads": [],
+      "event": "assign",
+      "explanation": "7 is a primitive value. It lives directly inside n’s stack cell.",
+      "diff": {
+        "added": [
+          "n"
+        ],
+        "removed": [],
+        "changed": []
+      }
+    },
+    {
+      "id": "a3",
+      "line": 6,
+      "stack": [
+        {
+          "id": "main",
+          "method": "main",
+          "args": "String[] args",
+          "locals": [
+            {
+              "id": "n",
+              "name": "n",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 7
+              }
+            },
+            {
+              "id": "p1",
+              "name": "p1",
+              "value": {
+                "kind": "reference",
+                "type": "Person",
+                "target": "A1"
+              }
+            }
+          ]
+        }
+      ],
+      "heap": [
+        {
+          "id": "A1",
+          "type": "Person",
+          "fields": [
+            {
+              "id": "A1.name",
+              "name": "name",
+              "value": {
+                "kind": "reference",
+                "type": "String",
+                "target": "S1"
+              }
+            }
+          ],
+          "zone": "objects"
+        },
+        {
+          "id": "S1",
+          "type": "String",
+          "fields": [],
+          "zone": "strings",
+          "label": "\"Ana\"",
+          "root": true
+        }
+      ],
+      "statics": [],
+      "threads": [],
+      "event": "allocate",
+      "explanation": "A Person is allocated on the heap. p1 holds its reference.",
+      "diff": {
+        "added": [
+          "p1",
+          "A1",
+          "A1.name",
+          "S1"
+        ],
+        "removed": [],
+        "changed": []
+      }
+    },
+    {
+      "id": "a4",
+      "line": 7,
+      "stack": [
+        {
+          "id": "main",
+          "method": "main",
+          "args": "String[] args",
+          "locals": [
+            {
+              "id": "n",
+              "name": "n",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 7
+              }
+            },
+            {
+              "id": "p1",
+              "name": "p1",
+              "value": {
+                "kind": "reference",
+                "type": "Person",
+                "target": "A1"
+              }
+            },
+            {
+              "id": "p2",
+              "name": "p2",
+              "value": {
+                "kind": "reference",
+                "type": "Person",
+                "target": "A1"
+              }
+            }
+          ]
+        }
+      ],
+      "heap": [
+        {
+          "id": "A1",
+          "type": "Person",
+          "fields": [
+            {
+              "id": "A1.name",
+              "name": "name",
+              "value": {
+                "kind": "reference",
+                "type": "String",
+                "target": "S1"
+              }
+            }
+          ],
+          "zone": "objects"
+        },
+        {
+          "id": "S1",
+          "type": "String",
+          "fields": [],
+          "zone": "strings",
+          "label": "\"Ana\"",
+          "root": true
+        }
+      ],
+      "statics": [],
+      "threads": [],
+      "event": "assign",
+      "explanation": "p2 copies the reference. Both variables point to the same Person.",
+      "diff": {
+        "added": [
+          "p2"
+        ],
+        "removed": [],
+        "changed": []
+      }
+    },
+    {
+      "id": "a5",
+      "line": 8,
+      "stack": [
+        {
+          "id": "main",
+          "method": "main",
+          "args": "String[] args",
+          "locals": [
+            {
+              "id": "n",
+              "name": "n",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 7
+              }
+            },
+            {
+              "id": "p1",
+              "name": "p1",
+              "value": {
+                "kind": "reference",
+                "type": "Person",
+                "target": "A1"
+              }
+            },
+            {
+              "id": "p2",
+              "name": "p2",
+              "value": {
+                "kind": "reference",
+                "type": "Person",
+                "target": "A1"
+              }
+            }
+          ]
+        }
+      ],
+      "heap": [
+        {
+          "id": "A1",
+          "type": "Person",
+          "fields": [
+            {
+              "id": "A1.name",
+              "name": "name",
+              "value": {
+                "kind": "reference",
+                "type": "String",
+                "target": "S2"
+              }
+            }
+          ],
+          "zone": "objects"
+        },
+        {
+          "id": "S1",
+          "type": "String",
+          "fields": [],
+          "zone": "strings",
+          "label": "\"Ana\"",
+          "root": true
+        },
+        {
+          "id": "S2",
+          "type": "String",
+          "fields": [],
+          "zone": "strings",
+          "label": "\"Bo\"",
+          "root": true
+        }
+      ],
+      "statics": [],
+      "threads": [],
+      "event": "write",
+      "explanation": "Changing the shared Person through p2 also changes what p1 sees.",
+      "diff": {
+        "added": [
+          "S2"
+        ],
+        "removed": [],
+        "changed": [
+          "A1",
+          "A1.name"
+        ]
+      },
+      "prediction": {
+        "id": "alias-name",
+        "question": "After p2.name = \"Bo\", what does p1.name print?",
+        "options": [
+          "Ana",
+          "Bo",
+          "null"
+        ],
+        "correct": 1,
+        "why": "p1 and p2 contain the same reference to A1. There is only one Person."
+      }
+    },
+    {
+      "id": "a6",
+      "line": 9,
+      "stack": [
+        {
+          "id": "main",
+          "method": "main",
+          "args": "String[] args",
+          "locals": [
+            {
+              "id": "n",
+              "name": "n",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 7
+              }
+            },
+            {
+              "id": "p1",
+              "name": "p1",
+              "value": {
+                "kind": "reference",
+                "type": "Person",
+                "target": "A1"
+              }
+            },
+            {
+              "id": "p2",
+              "name": "p2",
+              "value": {
+                "kind": "reference",
+                "type": "Person",
+                "target": "A1"
+              }
+            }
+          ]
+        }
+      ],
+      "heap": [
+        {
+          "id": "A1",
+          "type": "Person",
+          "fields": [
+            {
+              "id": "A1.name",
+              "name": "name",
+              "value": {
+                "kind": "reference",
+                "type": "String",
+                "target": "S2"
+              }
+            }
+          ],
+          "zone": "objects"
+        },
+        {
+          "id": "S1",
+          "type": "String",
+          "fields": [],
+          "zone": "strings",
+          "label": "\"Ana\"",
+          "root": true
+        },
+        {
+          "id": "S2",
+          "type": "String",
+          "fields": [],
+          "zone": "strings",
+          "label": "\"Bo\"",
+          "root": true
+        }
+      ],
+      "statics": [],
+      "threads": [],
+      "event": "read",
+      "explanation": "The output is Bo. A second reference did not create a second object.",
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": []
+      },
+      "output": "Bo"
+    },
+    {
+      "id": "a7",
+      "line": 10,
+      "stack": [
+        {
+          "id": "main",
+          "method": "main",
+          "args": "String[] args",
+          "locals": [
+            {
+              "id": "n",
+              "name": "n",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 7
+              }
+            },
+            {
+              "id": "p1",
+              "name": "p1",
+              "value": {
+                "kind": "reference",
+                "type": "Person",
+                "target": null
+              }
+            },
+            {
+              "id": "p2",
+              "name": "p2",
+              "value": {
+                "kind": "reference",
+                "type": "Person",
+                "target": "A1"
+              }
+            }
+          ]
+        }
+      ],
+      "heap": [
+        {
+          "id": "A1",
+          "type": "Person",
+          "fields": [
+            {
+              "id": "A1.name",
+              "name": "name",
+              "value": {
+                "kind": "reference",
+                "type": "String",
+                "target": "S2"
+              }
+            }
+          ],
+          "zone": "objects"
+        },
+        {
+          "id": "S1",
+          "type": "String",
+          "fields": [],
+          "zone": "strings",
+          "label": "\"Ana\"",
+          "root": true
+        },
+        {
+          "id": "S2",
+          "type": "String",
+          "fields": [],
+          "zone": "strings",
+          "label": "\"Bo\"",
+          "root": true
+        }
+      ],
+      "statics": [],
+      "threads": [],
+      "event": "assign",
+      "explanation": "Clearing p1 removes one reference. p2 still keeps the Person reachable.",
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          "p1"
+        ]
+      }
+    },
+    {
+      "id": "a8",
+      "line": 11,
+      "stack": [
+        {
+          "id": "main",
+          "method": "main",
+          "args": "String[] args",
+          "locals": [
+            {
+              "id": "n",
+              "name": "n",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 7
+              }
+            },
+            {
+              "id": "p1",
+              "name": "p1",
+              "value": {
+                "kind": "reference",
+                "type": "Person",
+                "target": null
+              }
+            },
+            {
+              "id": "p2",
+              "name": "p2",
+              "value": {
+                "kind": "reference",
+                "type": "Person",
+                "target": null
+              }
+            }
+          ]
+        }
+      ],
+      "heap": [
+        {
+          "id": "A1",
+          "type": "Person",
+          "fields": [
+            {
+              "id": "A1.name",
+              "name": "name",
+              "value": {
+                "kind": "reference",
+                "type": "String",
+                "target": "S2"
+              }
+            }
+          ],
+          "zone": "objects",
+          "unreachable": true
+        },
+        {
+          "id": "S1",
+          "type": "String",
+          "fields": [],
+          "zone": "strings",
+          "label": "\"Ana\"",
+          "root": true
+        },
+        {
+          "id": "S2",
+          "type": "String",
+          "fields": [],
+          "zone": "strings",
+          "label": "\"Bo\"",
+          "root": true
+        }
+      ],
+      "statics": [],
+      "threads": [],
+      "event": "unreachable",
+      "explanation": "The last Person reference is cleared. A1 is now unreachable, but still present.",
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          "p2",
+          "A1"
+        ]
+      },
+      "prediction": {
+        "id": "alias-gc",
+        "question": "After both references become null, what happens to A1?",
+        "options": [
+          "It disappears immediately",
+          "It becomes eligible for GC",
+          "The Person becomes null"
+        ],
+        "correct": 1,
+        "why": "Null changes the reference cell. Collection can happen later; it is not immediate."
+      }
+    },
+    {
+      "id": "a9",
+      "line": 12,
+      "stack": [
+        {
+          "id": "main",
+          "method": "main",
+          "args": "String[] args",
+          "locals": [
+            {
+              "id": "n",
+              "name": "n",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 7
+              }
+            },
+            {
+              "id": "p1",
+              "name": "p1",
+              "value": {
+                "kind": "reference",
+                "type": "Person",
+                "target": null
+              }
+            },
+            {
+              "id": "p2",
+              "name": "p2",
+              "value": {
+                "kind": "reference",
+                "type": "Person",
+                "target": null
+              }
+            }
+          ]
+        }
+      ],
+      "heap": [
+        {
+          "id": "S1",
+          "type": "String",
+          "fields": [],
+          "zone": "strings",
+          "label": "\"Ana\"",
+          "root": true
+        },
+        {
+          "id": "S2",
+          "type": "String",
+          "fields": [],
+          "zone": "strings",
+          "label": "\"Bo\"",
+          "root": true
+        }
+      ],
+      "statics": [],
+      "threads": [],
+      "event": "gc",
+      "explanation": "Run GC: the simulated collector removes A1. String literals remain modeled roots.",
+      "diff": {
+        "added": [],
+        "removed": [
+          "A1",
+          "A1.name"
+        ],
+        "changed": []
+      }
+    },
+    {
+      "id": "a10",
+      "line": 13,
+      "stack": [],
+      "heap": [
+        {
+          "id": "S1",
+          "type": "String",
+          "fields": [],
+          "zone": "strings",
+          "label": "\"Ana\"",
+          "root": true
+        },
+        {
+          "id": "S2",
+          "type": "String",
+          "fields": [],
+          "zone": "strings",
+          "label": "\"Bo\"",
+          "root": true
+        }
+      ],
+      "statics": [],
+      "threads": [],
+      "event": "return",
+      "explanation": "main returns. Its frame and primitive locals leave the stack.",
+      "diff": {
+        "added": [],
+        "removed": [
+          "main",
+          "n",
+          "p1",
+          "p2"
+        ],
+        "changed": []
+      }
+    }
+  ]
+}

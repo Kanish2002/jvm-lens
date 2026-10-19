@@ -1,0 +1,702 @@
+{
+  "id": "integer-cache",
+  "title": "Equal values. Different identities.",
+  "subtitle": "Integer cache · 127 / 128",
+  "misconception": "Two Integer references with equal numbers always satisfy ==.",
+  "mode": "memory",
+  "evidence": "curated",
+  "note": "Models the default HotSpot Integer cache. -128 through 127 are cached; a JVM may cache a wider range. Use equals for value comparison.",
+  "code": "public class Main {\n  public static void main(String[] args) {\n    Integer a = 127;\n    Integer b = 127;\n    Integer c = 128;\n    Integer d = 128;\n    System.out.println(a == b);\n    System.out.println(c == d);\n    System.out.println(c.equals(d));\n  }\n}",
+  "steps": [
+    {
+      "id": "i1",
+      "line": 2,
+      "stack": [
+        {
+          "id": "main",
+          "method": "main",
+          "args": "String[] args",
+          "locals": []
+        }
+      ],
+      "heap": [],
+      "statics": [],
+      "threads": [],
+      "event": "start",
+      "explanation": "main starts with an empty stack frame.",
+      "diff": {
+        "added": [
+          "main"
+        ],
+        "removed": [],
+        "changed": []
+      }
+    },
+    {
+      "id": "i2",
+      "line": 3,
+      "stack": [
+        {
+          "id": "main",
+          "method": "main",
+          "args": "String[] args",
+          "locals": [
+            {
+              "id": "a",
+              "name": "a",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I127"
+              }
+            }
+          ]
+        }
+      ],
+      "heap": [
+        {
+          "id": "I127",
+          "type": "Integer",
+          "fields": [
+            {
+              "id": "I127.value",
+              "name": "value",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 127
+              }
+            }
+          ],
+          "zone": "objects",
+          "root": true
+        }
+      ],
+      "statics": [],
+      "threads": [],
+      "event": "allocate",
+      "explanation": "Boxing 127 reuses a cached Integer instance.",
+      "diff": {
+        "added": [
+          "a",
+          "I127",
+          "I127.value"
+        ],
+        "removed": [],
+        "changed": []
+      }
+    },
+    {
+      "id": "i3",
+      "line": 4,
+      "stack": [
+        {
+          "id": "main",
+          "method": "main",
+          "args": "String[] args",
+          "locals": [
+            {
+              "id": "a",
+              "name": "a",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I127"
+              }
+            },
+            {
+              "id": "b",
+              "name": "b",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I127"
+              }
+            }
+          ]
+        }
+      ],
+      "heap": [
+        {
+          "id": "I127",
+          "type": "Integer",
+          "fields": [
+            {
+              "id": "I127.value",
+              "name": "value",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 127
+              }
+            }
+          ],
+          "zone": "objects",
+          "root": true
+        }
+      ],
+      "statics": [],
+      "threads": [],
+      "event": "assign",
+      "explanation": "b points to the same cached Integer as a.",
+      "diff": {
+        "added": [
+          "b"
+        ],
+        "removed": [],
+        "changed": []
+      }
+    },
+    {
+      "id": "i4",
+      "line": 5,
+      "stack": [
+        {
+          "id": "main",
+          "method": "main",
+          "args": "String[] args",
+          "locals": [
+            {
+              "id": "a",
+              "name": "a",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I127"
+              }
+            },
+            {
+              "id": "b",
+              "name": "b",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I127"
+              }
+            },
+            {
+              "id": "c",
+              "name": "c",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I128a"
+              }
+            }
+          ]
+        }
+      ],
+      "heap": [
+        {
+          "id": "I127",
+          "type": "Integer",
+          "fields": [
+            {
+              "id": "I127.value",
+              "name": "value",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 127
+              }
+            }
+          ],
+          "zone": "objects",
+          "root": true
+        },
+        {
+          "id": "I128a",
+          "type": "Integer",
+          "fields": [
+            {
+              "id": "I128a.value",
+              "name": "value",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 128
+              }
+            }
+          ],
+          "zone": "objects",
+          "root": false
+        }
+      ],
+      "statics": [],
+      "threads": [],
+      "event": "allocate",
+      "explanation": "With the default cache, boxing 128 creates another Integer.",
+      "diff": {
+        "added": [
+          "c",
+          "I128a",
+          "I128a.value"
+        ],
+        "removed": [],
+        "changed": []
+      }
+    },
+    {
+      "id": "i5",
+      "line": 6,
+      "stack": [
+        {
+          "id": "main",
+          "method": "main",
+          "args": "String[] args",
+          "locals": [
+            {
+              "id": "a",
+              "name": "a",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I127"
+              }
+            },
+            {
+              "id": "b",
+              "name": "b",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I127"
+              }
+            },
+            {
+              "id": "c",
+              "name": "c",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I128a"
+              }
+            },
+            {
+              "id": "d",
+              "name": "d",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I128b"
+              }
+            }
+          ]
+        }
+      ],
+      "heap": [
+        {
+          "id": "I127",
+          "type": "Integer",
+          "fields": [
+            {
+              "id": "I127.value",
+              "name": "value",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 127
+              }
+            }
+          ],
+          "zone": "objects",
+          "root": true
+        },
+        {
+          "id": "I128a",
+          "type": "Integer",
+          "fields": [
+            {
+              "id": "I128a.value",
+              "name": "value",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 128
+              }
+            }
+          ],
+          "zone": "objects",
+          "root": false
+        },
+        {
+          "id": "I128b",
+          "type": "Integer",
+          "fields": [
+            {
+              "id": "I128b.value",
+              "name": "value",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 128
+              }
+            }
+          ],
+          "zone": "objects",
+          "root": false
+        }
+      ],
+      "statics": [],
+      "threads": [],
+      "event": "allocate",
+      "explanation": "Another 128 is boxed as a distinct instance in this trace.",
+      "diff": {
+        "added": [
+          "d",
+          "I128b",
+          "I128b.value"
+        ],
+        "removed": [],
+        "changed": []
+      }
+    },
+    {
+      "id": "i6",
+      "line": 7,
+      "stack": [
+        {
+          "id": "main",
+          "method": "main",
+          "args": "String[] args",
+          "locals": [
+            {
+              "id": "a",
+              "name": "a",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I127"
+              }
+            },
+            {
+              "id": "b",
+              "name": "b",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I127"
+              }
+            },
+            {
+              "id": "c",
+              "name": "c",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I128a"
+              }
+            },
+            {
+              "id": "d",
+              "name": "d",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I128b"
+              }
+            }
+          ]
+        }
+      ],
+      "heap": [
+        {
+          "id": "I127",
+          "type": "Integer",
+          "fields": [
+            {
+              "id": "I127.value",
+              "name": "value",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 127
+              }
+            }
+          ],
+          "zone": "objects",
+          "root": true
+        },
+        {
+          "id": "I128a",
+          "type": "Integer",
+          "fields": [
+            {
+              "id": "I128a.value",
+              "name": "value",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 128
+              }
+            }
+          ],
+          "zone": "objects",
+          "root": false
+        },
+        {
+          "id": "I128b",
+          "type": "Integer",
+          "fields": [
+            {
+              "id": "I128b.value",
+              "name": "value",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 128
+              }
+            }
+          ],
+          "zone": "objects",
+          "root": false
+        }
+      ],
+      "statics": [],
+      "threads": [],
+      "event": "read",
+      "explanation": "a == b is true because both references point to I127.",
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": []
+      },
+      "output": "true"
+    },
+    {
+      "id": "i7",
+      "line": 8,
+      "stack": [
+        {
+          "id": "main",
+          "method": "main",
+          "args": "String[] args",
+          "locals": [
+            {
+              "id": "a",
+              "name": "a",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I127"
+              }
+            },
+            {
+              "id": "b",
+              "name": "b",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I127"
+              }
+            },
+            {
+              "id": "c",
+              "name": "c",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I128a"
+              }
+            },
+            {
+              "id": "d",
+              "name": "d",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I128b"
+              }
+            }
+          ]
+        }
+      ],
+      "heap": [
+        {
+          "id": "I127",
+          "type": "Integer",
+          "fields": [
+            {
+              "id": "I127.value",
+              "name": "value",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 127
+              }
+            }
+          ],
+          "zone": "objects",
+          "root": true
+        },
+        {
+          "id": "I128a",
+          "type": "Integer",
+          "fields": [
+            {
+              "id": "I128a.value",
+              "name": "value",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 128
+              }
+            }
+          ],
+          "zone": "objects",
+          "root": false
+        },
+        {
+          "id": "I128b",
+          "type": "Integer",
+          "fields": [
+            {
+              "id": "I128b.value",
+              "name": "value",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 128
+              }
+            }
+          ],
+          "zone": "objects",
+          "root": false
+        }
+      ],
+      "statics": [],
+      "threads": [],
+      "event": "read",
+      "explanation": "c == d is false here: equal values, different object identities.",
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": []
+      },
+      "output": "true\nfalse",
+      "prediction": {
+        "id": "integer-id",
+        "question": "With the default cache, what does c == d print?",
+        "options": [
+          "true",
+          "false",
+          "A compile error"
+        ],
+        "correct": 1,
+        "why": "== compares wrapper identity. The two 128 values are stored in different Integer objects here."
+      }
+    },
+    {
+      "id": "i8",
+      "line": 9,
+      "stack": [
+        {
+          "id": "main",
+          "method": "main",
+          "args": "String[] args",
+          "locals": [
+            {
+              "id": "a",
+              "name": "a",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I127"
+              }
+            },
+            {
+              "id": "b",
+              "name": "b",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I127"
+              }
+            },
+            {
+              "id": "c",
+              "name": "c",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I128a"
+              }
+            },
+            {
+              "id": "d",
+              "name": "d",
+              "value": {
+                "kind": "reference",
+                "type": "Integer",
+                "target": "I128b"
+              }
+            }
+          ]
+        }
+      ],
+      "heap": [
+        {
+          "id": "I127",
+          "type": "Integer",
+          "fields": [
+            {
+              "id": "I127.value",
+              "name": "value",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 127
+              }
+            }
+          ],
+          "zone": "objects",
+          "root": true
+        },
+        {
+          "id": "I128a",
+          "type": "Integer",
+          "fields": [
+            {
+              "id": "I128a.value",
+              "name": "value",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 128
+              }
+            }
+          ],
+          "zone": "objects",
+          "root": false
+        },
+        {
+          "id": "I128b",
+          "type": "Integer",
+          "fields": [
+            {
+              "id": "I128b.value",
+              "name": "value",
+              "value": {
+                "kind": "primitive",
+                "type": "int",
+                "value": 128
+              }
+            }
+          ],
+          "zone": "objects",
+          "root": false
+        }
+      ],
+      "statics": [],
+      "threads": [],
+      "event": "read",
+      "explanation": "c.equals(d) is true because equals compares the stored integer values.",
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": []
+      },
+      "output": "true\nfalse\ntrue"
+    }
+  ]
+}
